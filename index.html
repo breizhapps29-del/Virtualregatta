@@ -181,7 +181,7 @@ details > * + *{margin-top:12px}
       </div>
       <div class="pair">
         <div class="cell">
-          <div class="lab">Sur le plan</div>
+          <div class="lab" id="dPlanLab">Sur le plan</div>
           <div class="val" id="dPlan">—</div>
           <div class="sub" id="dPlanSub"></div>
         </div>
@@ -1467,7 +1467,7 @@ function drawMap() {
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '17';
+const VERSION = '18';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -1491,6 +1491,31 @@ function posedEta() {
   }
   return last.ms;
 }
+// Trace de la route jusqu'à la dernière bouée posée : sert à suivre l'avance ou le retard sans refaire de calcul.
+function traceTo(r, flags) {
+  if (!r || !r.ok || !grid || !flags.length) return null;
+  const last = flags[flags.length - 1], pts = routePts(r).filter(p => p[0] < last.ms);
+  pts.push([last.ms, last.lat, last.lon]);
+  return pts.length > 1 ? pts : null;
+}
+// Bouées posées avant la version 18 : on retrouve leur trace si la route affichée passe par toutes.
+function posedTrace() {
+  const p = state.posed; if (!p || !p.flags || !p.flags.length) return null;
+  if (p.pts) return p.pts;
+  const r = results[selected];
+  if (!r || !r.ok || !grid) return null;
+  const tr = { pts: routePts(r) };
+  if (!p.flags.every(f => comparePlan(tr, f.lat, f.lon, Date.now()).off < 3)) return null;
+  p.pts = traceTo(r, p.flags); if (p.pts) saveState();
+  return p.pts;
+}
+// Où en est le bateau par rapport à la route de ses bouées posées, d'après la dernière position saisie.
+function posedCmp() {
+  if (!racing() || START === OUESSANT) return null;
+  const pts = posedTrace(); if (!pts) return null;
+  const c = comparePlan({ pts }, START.lat, START.lon, state.posAt || Date.now());
+  return c.over ? null : c;
+}
 function renderPosed() {
   const p = state.posed, el = $('#posedMsg');
   if (!p || !p.flags || !p.flags.length) { el.textContent = 'Touche ce bouton une fois les bouées posées : l\'onglet Course te dira jusqu\'à quand elles tiennent.'; return; }
@@ -1499,7 +1524,8 @@ function renderPosed() {
 }
 $('#btnPosed').addEventListener('click', () => {
   if (!flagList.length || !grid) return;
-  state.posed = { at: Date.now(), flags: flagList.map(f => ({ lat: +f.lat.toFixed(4), lon: +f.lon.toFixed(4), ms: atT(f.t).getTime() })) };
+  const flags = flagList.map(f => ({ lat: +f.lat.toFixed(4), lon: +f.lon.toFixed(4), ms: atT(f.t).getTime() }));
+  state.posed = { at: Date.now(), flags, pts: traceTo(results[selected], flags) };
   saveState(); renderPosed(); updateDash();
 });
 
@@ -1572,8 +1598,14 @@ function updateDash() {
     big.textContent = (d ? d + ' j ' : '') + p2(Math.floor((m % 1440) / 60)) + ' h ' + p2(m % 60);
     sub.textContent = 'Départ ' + clockFmt.format(new Date(ms));
   }
-  const pl = $('#dPlan'), pls = $('#dPlanSub');
-  if (racing() && lastCmp && !lastCmp.c.over) {
+  const pl = $('#dPlan'), pls = $('#dPlanSub'), pc0 = posedCmp();
+  $('#dPlanLab').textContent = pc0 ? 'Sur tes bouées' : 'Sur le plan';
+  if (pc0) {
+    const a = Math.abs(pc0.lead), side = pc0.off >= 5 ? Math.round(pc0.off) + ' Mn ' + (pc0.left ? 'à gauche' : 'à droite') + ' de la trace' : 'sur la trace';
+    pl.textContent = a < 0.5 ? 'À l\'heure' : fmtDur(a);
+    pls.textContent = (a < 0.5 ? '' : (pc0.lead > 0 ? 'd\'avance, ' : 'de retard, ')) + side + ', à ta position de ' + hourFmt.format(new Date(state.posAt || Date.now())) +
+      (pc0.off >= 20 ? '. Tu t\'éloignes de la trace : refais un calcul et vérifie tes bouées.' : '');
+  } else if (racing() && lastCmp && !lastCmp.c.over) {
     const a = Math.abs(lastCmp.c.lead);
     pl.textContent = a < 0.5 ? 'À l\'heure' : fmtDur(a);
     pls.textContent = (a < 0.5 ? '' : (lastCmp.c.lead > 0 ? 'd\'avance ' : 'de retard ')) + 'sur le calcul de ' + clockFmt.format(new Date(lastCmp.made));
