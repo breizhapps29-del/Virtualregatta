@@ -239,7 +239,7 @@ details > * + *{margin-top:12px}
           <label class="f"><span>Longitude (O = négatif)</span><input id="tlon" inputmode="text" autocomplete="off"></label>
         </div>
         <button id="btnGo" class="primary" type="button">Mettre à jour la route</button>
-        <p class="status" id="status" role="status">Le vent est téléchargé puis la route calculée, en une fois.</p>
+        <p class="status" id="status" role="status">Le vent est téléchargé s'il a plus de trois heures, puis la route est calculée. Le téléchargement prend deux à trois minutes.</p>
         <button id="btnRun" type="button" hidden>Calculer</button>
       </div>
     </div>
@@ -607,7 +607,7 @@ function parseCoord(str) {
 /* ---------- Vent : grille GFS téléchargée sur Open-Meteo ---------- */
 const API = 'https://api.open-meteo.com/v1/gfs';
 const GRID_STEP = 2, CHUNK = 100;
-let grid = null, fine = null; // { t0, nT, lat0, lon0, d, nLat, nLon, U, V }
+let grid = null, nests = []; // grille large, puis grilles plus fines devant le bateau (la plus fine en premier)
 
 function gridBox() {
   const P = [START, ...goalPts()], lats = P.map(p => p.lat), lons = P.map(p => p.lon);
@@ -615,19 +615,21 @@ function gridBox() {
   const lo0 = Math.floor((Math.min(...lons) - 8) / GRID_STEP) * GRID_STEP, lo1 = Math.ceil((Math.max(...lons) + 4) / GRID_STEP) * GRID_STEP;
   return { lat0: Math.max(la0, -70), lon0: lo0, nLat: Math.round((Math.min(la1, 70) - Math.max(la0, -70)) / GRID_STEP) + 1, nLon: Math.round((lo1 - lo0) / GRID_STEP) + 1, d: GRID_STEP };
 }
+// Série horaire d'une variable : le nom peut porter le suffixe du modèle quand on en demande un précis.
+const hv = (l, name) => l.hourly[name] || l.hourly[Object.keys(l.hourly).find(k => k.startsWith(name))];
 function buildGrid(box, locs) {
   // locs : tableau, dans l'ordre lignes puis colonnes, des réponses Open-Meteo (hourly.time, wind_speed_10m, wind_direction_10m)
   const times = locs[0].hourly.time;
   let nT = times.length;
   for (const l of locs) {
-    const s = l.hourly.wind_speed_10m, dd = l.hourly.wind_direction_10m;
+    const s = hv(l, 'wind_speed_10m'), dd = hv(l, 'wind_direction_10m');
     let n = 0; while (n < s.length && s[n] !== null && dd[n] !== null) n++;
     nT = Math.min(nT, n);
   }
   if (nT < 2) throw new Error('La réponse météo ne contient pas de prévision utilisable.');
   const N = box.nLat * box.nLon, U = new Float32Array(nT * N), V = new Float32Array(nT * N);
   locs.forEach((l, p) => {
-    const s = l.hourly.wind_speed_10m, dd = l.hourly.wind_direction_10m;
+    const s = hv(l, 'wind_speed_10m'), dd = hv(l, 'wind_direction_10m');
     for (let i = 0; i < nT; i++) { const a = dd[i] * D2R; U[i * N + p] = s[i] * Math.sin(a); V[i * N + p] = s[i] * Math.cos(a); }
   });
   return Object.assign({}, box, { t0: Date.parse(times[0] + ':00Z'), nT, U, V });
@@ -645,9 +647,9 @@ function sampleGrid(g, lat, lon, t) {
   return { twd: (Math.atan2(u, v) / D2R + 360) % 360, tws: Math.hypot(u, v) };
 }
 const inBox = (g, lat, lon) => lat >= g.lat0 && lat <= g.lat0 + (g.nLat - 1) * g.d && lon >= g.lon0 && lon <= g.lon0 + (g.nLon - 1) * g.d;
-// Vent de la prévision, sans correction : grille fine devant le bateau quand elle existe, grille large ailleurs.
+// Vent de la prévision, sans correction : la grille la plus fine qui couvre le point et l'heure, sinon la grille large.
 function windRaw(lat, lon, t) {
-  if (fine && t <= fine.nT - 1 && inBox(fine, lat, lon)) return sampleGrid(fine, lat, lon, t);
+  for (const n of nests) if (t <= n.nT - 1 && inBox(n, lat, lon)) return sampleGrid(n, lat, lon, t);
   return sampleGrid(grid, lat, lon, t);
 }
 // Correction déduite des relevés du jeu : facteur sur la force, décalage sur la direction.
@@ -663,52 +665,89 @@ function windGrid(lat, lon, t) {
   const w = windRaw(lat, lon, t);
   return cal.n ? { twd: (w.twd + cal.d + 360) % 360, tws: w.tws * cal.k } : w;
 }
-async function fetchPoints(pts, days, onProgress) {
+// Le service gratuit compte chaque point demandé : environ 600 par minute, 5 000 par heure, 10 000 par jour.
+const RATE = { perMin: 520, windowMs: 60000, retryMs: 61000, budget: 1800 };
+const sentLog = [];
+async function pause(ms, tell) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) { if (tell) tell(Math.ceil((end - Date.now()) / 1000)); await new Promise(r => setTimeout(r, Math.min(1000, Math.max(50, end - Date.now())))); }
+}
+// Attend si nécessaire pour ne pas dépasser le nombre de points autorisé par minute.
+async function throttle(n, tell) {
+  for (;;) {
+    const now = Date.now();
+    while (sentLog.length && now - sentLog[0][0] > RATE.windowMs) sentLog.shift();
+    const used = sentLog.reduce((s, e) => s + e[1], 0);
+    if (!sentLog.length || used + n <= RATE.perMin) break;
+    await pause(RATE.windowMs - (now - sentLog[0][0]) + 200, tell);
+  }
+  sentLog.push([Date.now(), n]);
+}
+// opt : { model, maxDays, settled }. Au premier appel, si le service refuse le modèle seul ou la durée, on se replie.
+async function fetchPoints(pts, days, opt, onProg) {
   const locs = [];
   for (let i = 0; i < pts.length; i += CHUNK) {
     const part = pts.slice(i, i + CHUNK);
-    const mkUrl = d => API + '?latitude=' + part.map(p => p[0]).join(',') + '&longitude=' + part.map(p => p[1]).join(',') +
-      '&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn&forecast_days=' + d + '&timezone=GMT&cell_selection=nearest';
-    let res = await fetch(mkUrl(days.n));
-    if (!res.ok && res.status === 400 && i === 0 && days.n !== 7) { days.n = 7; res = await fetch(mkUrl(days.n)); }
-    if (!res.ok) {
+    let res, tries = 0;
+    for (;;) {
+      const url = API + '?latitude=' + part.map(p => p[0]).join(',') + '&longitude=' + part.map(p => p[1]).join(',') +
+        '&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn&forecast_days=' + Math.min(days, opt.maxDays) + '&timezone=GMT&cell_selection=nearest' + (opt.model ? '&models=' + opt.model : '');
+      await throttle(part.length, sec => onProg(i, sec));
+      res = await fetch(url);
+      if (res.ok) { opt.settled = true; break; }
       let reason = ''; try { reason = (await res.json()).reason || ''; } catch (e) {}
-      throw new Error('Le service météo a répondu ' + res.status + (reason ? ' : ' + reason : '') + (res.status === 429 ? ' (trop de demandes, réessaie dans une minute)' : ''));
+      if (res.status === 400 && !opt.settled) {
+        if (opt.maxDays > 7) { opt.maxDays = 7; continue; }
+        if (opt.model) { opt.model = null; opt.maxDays = 10; continue; }
+      }
+      if (res.status === 429 && !/daily|hourly/i.test(reason) && ++tries <= 3) { await pause(RATE.retryMs, sec => onProg(i, sec)); continue; }
+      throw new Error('Le service météo a répondu ' + res.status + (reason ? ' : ' + reason : '') +
+        (res.status === 429 ? (/daily/i.test(reason) ? ' (quota de la journée atteint, réessaie demain)' : /hourly/i.test(reason) ? ' (quota de l\'heure atteint, réessaie dans une heure)' : ' (trop de demandes, réessaie dans quelques minutes)') : ''));
     }
     const data = await res.json(), arr = Array.isArray(data) ? data : [data];
     if (arr.length !== part.length) throw new Error('Réponse météo incomplète (' + arr.length + ' points reçus sur ' + part.length + ').');
     locs.push(...arr);
-    onProgress(Math.min(i + CHUNK, pts.length), pts.length);
+    onProg(Math.min(i + CHUNK, pts.length), 0);
   }
   return locs;
 }
 const boxPoints = box => { const pts = []; for (let r = 0; r < box.nLat; r++) for (let c = 0; c < box.nLon; c++) pts.push([box.lat0 + r * box.d, box.lon0 + c * box.d]); return pts; };
-// Zone à 1° couvrant environ les 20 prochaines heures de route, depuis le point de départ vers la destination.
-function fineBox(tgt, coarse) {
-  const total = hav(START.lat, START.lon, tgt.lat, tgt.lon), brg = bearing(START.lat, START.lon, tgt.lat, tgt.lon);
-  for (const reach of [600, 450, 300]) {
-    const p = dest(START.lat, START.lon, brg, Math.min(total, reach));
-    const la0 = Math.max(Math.floor(Math.min(START.lat, p[0]) - 2), coarse.lat0), la1 = Math.min(Math.ceil(Math.max(START.lat, p[0]) + 2), coarse.lat0 + (coarse.nLat - 1) * coarse.d);
-    const lo0 = Math.max(Math.floor(Math.min(START.lon, p[1]) - 2), coarse.lon0), lo1 = Math.min(Math.ceil(Math.max(START.lon, p[1]) + 2), coarse.lon0 + (coarse.nLon - 1) * coarse.d);
-    const box = { lat0: la0, lon0: lo0, nLat: la1 - la0 + 1, nLon: lo1 - lo0 + 1, d: 1 };
-    if (box.nLat >= 2 && box.nLon >= 2 && box.nLat * box.nLon <= 200) return box;
+const boxCount = b => b.nLat * b.nLon;
+// Zone au pas d (en degrés) couvrant « reach » milles devant le bateau, en direction de la destination.
+function nestBox(tgt, coarse, d, reach, maxPts) {
+  const total = hav(START.lat, START.lon, tgt.lat, tgt.lon), brg = bearing(START.lat, START.lon, tgt.lat, tgt.lon), M = 2;
+  const cLa1 = coarse.lat0 + (coarse.nLat - 1) * coarse.d, cLo1 = coarse.lon0 + (coarse.nLon - 1) * coarse.d;
+  for (const k of [1, 0.75, 0.5]) {
+    const p = dest(START.lat, START.lon, brg, Math.min(total, reach * k));
+    const la0 = Math.max(Math.floor((Math.min(START.lat, p[0]) - M) / d) * d, coarse.lat0), la1 = Math.min(Math.ceil((Math.max(START.lat, p[0]) + M) / d) * d, cLa1);
+    const lo0 = Math.max(Math.floor((Math.min(START.lon, p[1]) - M) / d) * d, coarse.lon0), lo1 = Math.min(Math.ceil((Math.max(START.lon, p[1]) + M) / d) * d, cLo1);
+    const box = { lat0: la0, lon0: lo0, nLat: Math.round((la1 - la0) / d) + 1, nLon: Math.round((lo1 - lo0) / d) + 1, d };
+    if (box.nLat >= 2 && box.nLon >= 2 && boxCount(box) <= maxPts) return box;
   }
   return null;
 }
+// Trois niveaux : 2° sur tout le trajet (10 jours), 1° sur environ deux jours et demi de route, 0,5° sur les prochaines 24 heures.
 async function fetchWind(tgt, onProgress) {
-  const box = gridBox(tgt), pts = boxPoints(box), days = { n: 10 };
-  const g = buildGrid(box, await fetchPoints(pts, days, onProgress));
-  let f = null, note = '';
-  const fb = fineBox(tgt, box);
-  // Le service gratuit limite le nombre de points par minute : la grille fine n'est demandée que si le total reste raisonnable.
-  if (fb && pts.length + fb.nLat * fb.nLon <= 560) {
+  const box = gridBox(), plan = [{ box, days: 10 }];
+  const b1 = nestBox(tgt, box, 1, 1500, 520), b2 = nestBox(tgt, box, 0.5, 600, 650);
+  if (b1) plan.push({ box: b1, days: 5 });
+  if (b2) plan.push({ box: b2, days: 3 });
+  let total = plan.reduce((s, p) => s + boxCount(p.box), 0);
+  while (total > RATE.budget && plan.length > 1) total -= boxCount(plan.pop().box);
+  const opt = { model: 'gfs_global', maxDays: 10, settled: false }, grids = [];
+  let done = 0, note = '';
+  for (let i = 0; i < plan.length; i++) {
+    const p = plan[i], pts = boxPoints(p.box);
     try {
-      const fp = boxPoints(fb);
-      f = buildGrid(fb, await fetchPoints(fp, days, (a, b) => onProgress(pts.length + a, pts.length + b)));
-      if (f.t0 !== g.t0) f = null;
-    } catch (e) { f = null; note = ' La grille fine n\'a pas pu être chargée.'; }
+      const g = buildGrid(p.box, await fetchPoints(pts, p.days, opt, (a, sec) => onProgress(done + a, total, sec)));
+      done += pts.length;
+      if (!i || g.t0 === grids[0].t0) grids.push(g);
+    } catch (e) {
+      if (!i) throw e;
+      note = ' Une partie de la grille fine n\'a pas pu être chargée : ' + (e && e.message ? e.message : e); break;
+    }
   }
-  return { g, f, note };
+  return { g: grids[0], nests: grids.slice(1).reverse(), note, model: opt.model };
 }
 
 /* ---------- Interface ---------- */
@@ -850,7 +889,7 @@ async function restoreSession() {
   const w = await idbGet('wind');
   if (!w || !w.grid || grid) return;                                   // rien d'enregistré, ou un vent vient d'être chargé
   if ((Date.now() - w.grid.t0) / 3600e3 >= w.grid.nT - 24) return;     // prévision trop ancienne pour servir
-  grid = w.grid; fine = w.fine || null;
+  grid = w.grid; nests = w.nests || (w.fine ? [w.fine] : []);
   const ws = $('#windStatus'); ws.classList.remove('err');
   ws.textContent = 'Vent du ' + clockFmt.format(new Date(w.at)) + ' retrouvé, prévision jusqu\'au ' + clockFmt.format(atT(grid.nT - 1)) + '. Télécharge-le à nouveau pour une prévision plus récente.';
   const sl = $('#tsl'); sl.max = String(grid.nT - 1); sl.disabled = false; sl.value = String(Math.round(Math.min(Math.max(nowT(), 0), grid.nT - 1)));
@@ -961,10 +1000,11 @@ async function loadWind() {
   if (isNaN(tgt.lat) || isNaN(tgt.lon)) { say('Renseigne d\'abord une destination valide.', true); return false; }
   btn.disabled = true; say('Téléchargement du vent…');
   try {
-    const got = await fetchWind(tgt, (a, b) => say('Téléchargement du vent… ' + a + ' / ' + b + ' points'));
-    grid = got.g; fine = got.f; windLoadedAt = Date.now();
-    idbSet('wind', { grid, fine, at: windLoadedAt }); dropRoute();
-    say('Vent chargé : ' + (grid.nLat * grid.nLon + (fine ? fine.nLat * fine.nLon : 0)) + ' points' + (fine ? ', dont une grille fine de ' + (fine.nLat * fine.nLon) + ' points devant le bateau' : '') + ', prévision jusqu\'au ' + clockFmt.format(atT(grid.nT - 1)) + '. Téléchargé à ' + hourFmt.format(new Date()) + '.' + got.note);
+    const got = await fetchWind(tgt, (a, b, sec) => say(sec ? 'Pause de ' + sec + ' s, le service météo limite le nombre de points par minute. ' + a + ' / ' + b + ' points reçus.' : 'Téléchargement du vent… ' + a + ' / ' + b + ' points'));
+    grid = got.g; nests = got.nests; windLoadedAt = Date.now();
+    idbSet('wind', { grid, nests, at: windLoadedAt }); dropRoute();
+    const nFine = nests.reduce((s, n) => s + n.nLat * n.nLon, 0);
+    say('Vent chargé : ' + (grid.nLat * grid.nLon + nFine) + ' points' + (nFine ? ', dont ' + nFine + ' en grille fine devant le bateau' : '') + (got.model ? ', modèle GFS seul' : ', mélange par défaut du service') + '. Prévision jusqu\'au ' + clockFmt.format(atT(grid.nT - 1)) + ', téléchargée à ' + hourFmt.format(new Date()) + '.' + got.note);
     showCal();
     const sl = $('#tsl'); sl.max = String(grid.nT - 1); sl.disabled = false; sl.value = String(Math.round(Math.min(Math.max(nowT(), 0), grid.nT - 1)));
     results = []; setResultsVisible(false); tapped = null;
@@ -977,13 +1017,13 @@ async function loadWind() {
   } finally { btn.disabled = false; }
 }
 $('#btnWind').addEventListener('click', loadWind);
-// Bouton principal : recharge le vent s'il a plus de deux heures ou ne couvre plus le trajet, puis calcule.
+// Bouton principal : recharge le vent s'il a plus de trois heures ou ne couvre plus le trajet, puis calcule.
 async function refreshAll() {
   readSettings();
   if (racing() && START === OUESSANT) { setStatus('Indique d\'abord la position du bateau, lue dans le jeu.', true); return; }
   const btn = $('#btnGo'); btn.disabled = true; refreshing = true;
   try {
-    const stale = !grid || Date.now() - windLoadedAt > 2 * 3600e3 || [START, ...goalPts()].some(p => isNaN(p.lat) || isNaN(p.lon) || !inGrid(p.lat, p.lon));
+    const stale = !grid || Date.now() - windLoadedAt > 3 * 3600e3 || [START, ...goalPts()].some(p => isNaN(p.lat) || isNaN(p.lon) || !inGrid(p.lat, p.lon));
     if (stale && !(await loadWind())) return;
     await run();
   } finally { refreshing = false; btn.disabled = false; }
@@ -1427,7 +1467,7 @@ function drawMap() {
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '16';
+const VERSION = '17';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -1558,7 +1598,7 @@ function updateDash() {
 }
 
 $('#ver').textContent = 'version ' + VERSION;
-$('#about').textContent = 'Version ' + VERSION + '. Vent : modèle GFS, par Open-Meteo. Polaire relevée dans le jeu, de 2 à 30 nds de vent. Tes réglages et la dernière route restent enregistrés sur cet appareil.';
+$('#about').textContent = 'Version ' + VERSION + '. Vent : modèle GFS de la NOAA, distribué par Open-Meteo, limité à environ six téléchargements par jour. Polaire relevée dans le jeu, de 2 à 30 nds de vent. Tes réglages et la dernière route restent enregistrés sur cet appareil.';
 fillSettings(); syncCustom(); showCal(); updateChrono(); renderPosed(); updateDash(); updateTime();
 showTab(location.hash.slice(1) || 'course', false);
 restoreSession();
