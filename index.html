@@ -136,6 +136,13 @@ details > * + *{margin-top:12px}
 .leg .act{grid-column:1/-1;font-weight:600;font-size:.97rem}
 .leg.port .act{color:var(--port)} .leg.stbd .act{color:var(--stbd)}
 
+.reft{display:grid;grid-template-columns:minmax(0,1.35fr) repeat(3,minmax(0,1fr));gap:8px 10px;font-size:.92rem;align-items:baseline}
+.reft .h{color:var(--muted);font-size:.84rem}
+.reft .n{font-weight:500}
+.reft .next{font-weight:600;color:var(--digit)}
+.reft .past{color:var(--muted)}
+.reft small{display:block;color:var(--muted);font-size:.8rem;font-weight:400}
+
 /* Barre d'onglets, fixée en bas comme dans une appli */
 .tabs{
   position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:repeat(4,1fr);
@@ -182,6 +189,18 @@ details > * + *{margin-top:12px}
           <div class="lab">Bouées posées</div>
           <div class="val" id="dFlags">—</div>
           <div class="sub" id="dFlagsSub"></div>
+        </div>
+      </div>
+      <div class="pair">
+        <div class="cell">
+          <div class="lab">Sur le record</div>
+          <div class="val" id="dRec">—</div>
+          <div class="sub" id="dRecSub"></div>
+        </div>
+        <div class="cell">
+          <div class="lab">Sur la moyenne</div>
+          <div class="val" id="dAvg">—</div>
+          <div class="sub" id="dAvgSub"></div>
         </div>
       </div>
     </div>
@@ -232,6 +251,13 @@ details > * + *{margin-top:12px}
       <div class="two">
         <button type="button" data-tab="route">Voir les bouées</button>
         <button type="button" data-tab="carte">Voir la carte</button>
+      </div>
+    </div>
+    <div class="block">
+      <h2>Temps de passage</h2>
+      <div class="panel">
+        <div class="reft" id="refTable"></div>
+        <p class="hint">Temps depuis Ouessant. Record : Sodebo Ultim 3, en 40 j 10 h 45. Moyenne : les quatre records précédents, de 2005 à 2017. L'avance ou le retard affichés en haut supposent une progression régulière entre deux repères : c'est un ordre de grandeur.</p>
       </div>
     </div>
   </section>
@@ -688,7 +714,7 @@ async function fetchWind(tgt, onProgress) {
 /* ---------- Interface ---------- */
 const $ = s => document.querySelector(s);
 const STORE_KEY = 'jv-routage-auto-v5';
-const DEFAULT_STATE = { preset: '16.5|-27', tlat: '16.5', tlon: '-27', coef: '1.00', pen: '8', dt: '2', cTws: '', cTwa: '', cBs: '', mode: 'start', slat: '', slon: '', simple: true, minleg: '4', nflags: '6', fh: '24', cal: [], raceStart: '2026-11-11T22:29', posed: null };
+const DEFAULT_STATE = { preset: '16.5|-27', tlat: '16.5', tlon: '-27', coef: '1.00', pen: '8', dt: '2', cTws: '', cTwa: '', cBs: '', mode: 'start', slat: '', slon: '', simple: true, minleg: '4', nflags: '6', fh: '24', cal: [], raceStart: '2026-11-11T22:29', posed: null, posAt: 0, splits: {} };
 const OUESSANT = { lat: 48.45, lon: -5.15 };
 let START = OUESSANT;
 let state = loadState(), results = [], selected = 0, tapped = null;
@@ -746,7 +772,7 @@ function updateStart() {
 function readSettings() { FIELDS.forEach(k => { state[k] = $('#' + k).value; }); state.preset = $('#preset').value; state.mode = $('#mode').value; saveState(); updateStart(); }
 function fillSettings() { FIELDS.forEach(k => { $('#' + k).value = state[k]; }); $('#preset').value = state.preset; $('#mode').value = state.mode; updateStart(); }
 $('#mode').addEventListener('change', () => { readSettings(); results = []; setResultsVisible(false); dropRoute(); pv = null; updateDash(); drawMap(); });
-['slat', 'slon'].forEach(id => $('#' + id).addEventListener('input', () => { readSettings(); drawMap(); }));
+['slat', 'slon'].forEach(id => $('#' + id).addEventListener('input', () => { state.posAt = Date.now(); readSettings(); updateDash(); drawMap(); }));
 // Lit une position complète : format du jeu (48°N 31'46" - 005°W 10'18"), « 43 25 N 14 54 W », ou décimal « 43.4 -14.9 ».
 function parsePos(str) {
   const s = String(str).trim().toUpperCase(); if (!s) return null;
@@ -773,7 +799,7 @@ $('#spos').addEventListener('input', () => {
   if (!p) { msg.classList.add('err'); msg.textContent = 'Je ne comprends pas encore cette position. Exemple : 48°N 31\'46" - 005°W 10\'18"'; return; }
   msg.classList.remove('err');
   msg.textContent = 'Compris : ' + fmtDMS(p.lat, 'N', 'S') + ', ' + fmtDMS(p.lon, 'E', 'O') + (isLand(p.lat, p.lon) ? ' — ce point est sur terre, vérifie les lettres N/S et E/W.' : '');
-  $('#slat').value = p.lat.toFixed(4); $('#slon').value = p.lon.toFixed(4); readSettings(); pv = null; drawMap();
+  $('#slat').value = p.lat.toFixed(4); $('#slon').value = p.lon.toFixed(4); state.posAt = Date.now(); readSettings(); pv = null; updateDash(); drawMap();
 });
 
 /* ---------- Chrono de la tentative ---------- */
@@ -905,7 +931,7 @@ $('#btnTapStart').addEventListener('click', () => {
   if (!tapped) { $('#readout').textContent = 'Touche d\'abord la mer sur la carte, à la position du bateau.'; return; }
   $('#slat').value = tapped.lat.toFixed(4); $('#slon').value = tapped.lon.toFixed(4);
   $('#spos').value = fmtDM(tapped.lat, 'N', 'S') + ', ' + fmtDM(tapped.lon, 'E', 'O'); $('#sposMsg').textContent = '';
-  readSettings(); pv = null; showTab('course'); setStatus('Position du bateau enregistrée. Mets à jour la route.');
+  state.posAt = Date.now(); readSettings(); pv = null; updateDash(); showTab('course'); setStatus('Position du bateau enregistrée. Mets à jour la route.');
 });
 
 function syncCustom() { document.querySelectorAll('.custom').forEach(el => { el.hidden = $('#preset').value !== ''; }); }
@@ -1401,7 +1427,7 @@ function drawMap() {
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '15';
+const VERSION = '16';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -1437,6 +1463,64 @@ $('#btnPosed').addEventListener('click', () => {
   saveState(); renderPosed(); updateDash();
 });
 
+/* ---------- Repères : le record et la moyenne des records précédents ---------- */
+const dhm = (d, h, m) => d * 24 + h + m / 60;
+// Temps depuis Ouessant, en heures. rec : Sodebo Ultim 3 (2025-2026). old : IDEC Sport 2017, Banque Populaire V 2012, Groupama 3 2010, Orange II 2005.
+// L'équateur retour du record est approché : un peu plus de 20 h d'avance sur IDEC Sport, d'après la presse.
+const MARKS = [
+  { id: 'eq1', name: 'Équateur', pos: [0, -28], rec: dhm(4, 4, 2), old: [dhm(5, 18, 59), dhm(5, 14, 55), dhm(5, 15, 23), dhm(7, 2, 56)] },
+  { id: 'gh', name: 'Bonne-Espérance', pos: [-42, 18.47], rec: dhm(10, 23, 55), old: [dhm(12, 19, 28), dhm(11, 21, 48), dhm(14, 13, 31), dhm(14, 5, 21)] },
+  { id: 'lw', name: 'Cap Leeuwin', pos: [-47, 115.13], rec: dhm(17, 1, 17), old: [dhm(17, 6, 59), dhm(17, 23, 57), dhm(21, 14, 22), dhm(21, 13, 0)] },
+  { id: 'hn', name: 'Cap Horn', pos: [-57, -67.27], rec: dhm(26, 4, 46), old: [dhm(26, 15, 45), dhm(30, 22, 19), dhm(32, 4, 34), dhm(32, 13, 29)] },
+  { id: 'eq2', name: 'Équateur, retour', pos: [0, -30], rec: dhm(34, 8, 0), approx: true, old: [dhm(35, 4, 9), dhm(38, 2, 46), dhm(41, 21, 9), dhm(40, 19, 5)] },
+  { id: 'fin', name: 'Arrivée', pos: [OUESSANT.lat, OUESSANT.lon], rec: dhm(40, 10, 45), old: [dhm(40, 23, 30), dhm(45, 13, 42), dhm(48, 7, 44), dhm(50, 16, 20)] }
+];
+MARKS.forEach(m => { m.avg = m.old.reduce((a, b) => a + b, 0) / m.old.length; });
+const fmtJH = h => { const t = Math.round(h), d = Math.floor(t / 24); return (d ? d + ' j ' : '') + (t % 24) + ' h'; };
+// Tronçon en cours, déduit de la position et du temps de course (avant ou après la mi-parcours).
+function markLeg(lat, lon, el) {
+  const early = el < 20 * 24;
+  if (lat < 0 && lon >= 18.47 && lon < 115.13) return 2;
+  if (lat < 0 && (lon >= 115.13 || lon < -67.27)) return 3;
+  if (lat >= 0) return early ? 0 : 5;
+  return early ? 1 : 4;
+}
+// Avance ou retard à la position du bateau, en supposant une progression régulière entre les deux repères qui l'encadrent.
+function paceInfo() {
+  const ms = raceMs(); if (!racing() || ms === null || START === OUESSANT) return null;
+  const at = state.posAt || Date.now(), el = (at - ms) / 3600e3; if (el <= 0) return null;
+  const leg = markLeg(START.lat, START.lon, el), A = leg ? MARKS[leg - 1] : { pos: [OUESSANT.lat, OUESSANT.lon], rec: 0, avg: 0 }, B = MARKS[leg];
+  const dA = hav(A.pos[0], A.pos[1], START.lat, START.lon), dB = hav(START.lat, START.lon, B.pos[0], B.pos[1]), f = dA + dB > 0 ? dA / (dA + dB) : 0;
+  return { leg, at, rec: el - (A.rec + f * (B.rec - A.rec)), avg: el - (A.avg + f * (B.avg - A.avg)) };
+}
+// Temps de course au repère : prévu quand la route calculée y arrive, estimé sinon (même vitesse moyenne jusqu'au repère).
+function myMarkTime(m) {
+  const ms = raceMs(), r = results[selected];
+  if (ms === null || !grid || !r || !r.ok || $('#results').hidden || !racing()) return null;
+  const e = r.end || target(), tEnd = (atT(r.arrT) - ms) / 3600e3;
+  const onMark = m.id === 'eq1' || m.id === 'eq2' ? Math.abs(e.lat) < 0.3 : m.id === 'fin' ? hav(e.lat, e.lon, m.pos[0], m.pos[1]) < 30 : Math.abs(angDiff(e.lon, m.pos[1])) < 0.5;
+  if (onMark) return { h: tEnd, kind: 'prévu' };
+  const v = r.dist / r.dur; if (!(v > 1)) return null;
+  return { h: tEnd + hav(e.lat, e.lon, m.pos[0], m.pos[1]) / v, kind: 'estimé' };
+}
+function renderRefs(pc) {
+  const box = $('#refTable'); box.textContent = '';
+  const cell = (txt, cls, small) => { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = txt; if (small) { const s = document.createElement('small'); s.textContent = small; d.append(s); } box.append(d); };
+  cell('Repère', 'h'); cell('Record', 'h'); cell('Moyenne', 'h'); cell('Toi', 'h');
+  const leg = pc ? pc.leg : -1, splits = state.splits || (state.splits = {});
+  MARKS.forEach((m, i) => {
+    const cls = i === leg ? 'next' : i < leg ? 'past' : '';
+    cell(m.name, 'n ' + cls); cell((m.approx ? '≈ ' : '') + fmtJH(m.rec), cls); cell(fmtJH(m.avg), cls);
+    if (i === leg) {
+      const mine = myMarkTime(m);
+      if (mine && mine.kind === 'prévu' && (!splits[m.id] || Math.abs(splits[m.id] - mine.h) > 0.05)) { splits[m.id] = mine.h; saveState(); }
+      if (mine) { const d = mine.h - m.rec; cell(fmtJH(mine.h), cls, mine.kind + ', ' + (d >= 0 ? '+' : '−') + fmtJH(Math.abs(d)) + ' sur le record'); }
+      else cell('—', cls, 'calcule une route');
+    } else if (i < leg) cell(splits[m.id] ? fmtJH(splits[m.id]) : 'passé', cls, splits[m.id] ? 'dernière prévision' : '');
+    else cell('', cls);
+  });
+}
+
 /* ---------- Tableau de course ---------- */
 function updateDash() {
   const ms = raceMs(), big = $('#dChrono'), sub = $('#dChronoSub');
@@ -1454,6 +1538,16 @@ function updateDash() {
     pl.textContent = a < 0.5 ? 'À l\'heure' : fmtDur(a);
     pls.textContent = (a < 0.5 ? '' : (lastCmp.c.lead > 0 ? 'd\'avance ' : 'de retard ')) + 'sur le calcul de ' + clockFmt.format(new Date(lastCmp.made));
   } else { pl.textContent = '—'; pls.textContent = 'Affiché quand deux calculs ont plus d\'une heure d\'écart.'; }
+  const pc = paceInfo();
+  const pace = (el, sub, v, who) => {
+    if (!pc) { el.textContent = '—'; sub.textContent = racing() ? 'Indique ta position et ton heure de départ.' : ''; return; }
+    const a = Math.abs(v);
+    el.textContent = a < 0.5 ? 'Au rythme' : fmtDays(a);
+    sub.textContent = (a < 0.5 ? 'de ' : v > 0 ? 'de retard sur ' : 'd\'avance sur ') + who + ', à ta position de ' + hourFmt.format(new Date(pc.at));
+  };
+  pace($('#dRec'), $('#dRecSub'), pc ? pc.rec : 0, 'Sodebo Ultim 3');
+  pace($('#dAvg'), $('#dAvgSub'), pc ? pc.avg : 0, 'la moyenne des records précédents');
+  renderRefs(pc);
   const fl = $('#dFlags'), fls = $('#dFlagsSub'), eta = posedEta(); fl.classList.remove('late');
   if (!eta) { fl.textContent = '—'; fls.textContent = 'Aucune bouée enregistrée.'; }
   else {
