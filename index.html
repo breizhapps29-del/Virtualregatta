@@ -1467,7 +1467,7 @@ function drawMap() {
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '18';
+const VERSION = '19';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -1512,8 +1512,20 @@ function posedTrace() {
 // Où en est le bateau par rapport à la route de ses bouées posées, d'après la dernière position saisie.
 function posedCmp() {
   if (!racing() || START === OUESSANT) return null;
-  const pts = posedTrace(); if (!pts) return null;
-  const c = comparePlan({ pts }, START.lat, START.lon, state.posAt || Date.now());
+  const at = state.posAt || Date.now();
+  let pts = posedTrace(), rough = false;
+  if (!pts) {
+    // Pas de trace enregistrée : on relie les bouées entre elles et, si le bateau n'a pas encore atteint la première, on estime son heure de passage à la vitesse prévue entre les deux premières.
+    const F = state.posed && state.posed.flags; if (!F || F.length < 2) return null;
+    pts = F.map(f => [f.ms, f.lat, f.lon]); rough = true;
+    const c0 = comparePlan({ pts }, START.lat, START.lon, at);
+    if (c0.lead * 3600e3 + at <= F[0].ms + 60e3) {
+      const v = hav(F[0].lat, F[0].lon, F[1].lat, F[1].lon) / Math.max(0.1, (F[1].ms - F[0].ms) / 3600e3);
+      pts.unshift([F[0].ms - hav(START.lat, START.lon, F[0].lat, F[0].lon) / Math.max(5, v) * 3600e3, START.lat, START.lon]);
+    }
+  }
+  const c = comparePlan({ pts }, START.lat, START.lon, at);
+  c.rough = rough;
   return c.over ? null : c;
 }
 function renderPosed() {
@@ -1602,8 +1614,8 @@ function updateDash() {
   $('#dPlanLab').textContent = pc0 ? 'Sur tes bouées' : 'Sur le plan';
   if (pc0) {
     const a = Math.abs(pc0.lead), side = pc0.off >= 5 ? Math.round(pc0.off) + ' Mn ' + (pc0.left ? 'à gauche' : 'à droite') + ' de la trace' : 'sur la trace';
-    pl.textContent = a < 0.5 ? 'À l\'heure' : fmtDur(a);
-    pls.textContent = (a < 0.5 ? '' : (pc0.lead > 0 ? 'd\'avance, ' : 'de retard, ')) + side + ', à ta position de ' + hourFmt.format(new Date(state.posAt || Date.now())) +
+    pl.textContent = (pc0.rough ? '≈ ' : '') + (a < 0.5 ? 'À l\'heure' : fmtDur(a));
+    pls.textContent = (a < 0.5 ? '' : (pc0.lead > 0 ? 'd\'avance, ' : 'de retard, ')) + (pc0.rough ? 'estimé d\'après tes bouées' : side) + ', à ta position de ' + hourFmt.format(new Date(state.posAt || Date.now())) +
       (pc0.off >= 20 ? '. Tu t\'éloignes de la trace : refais un calcul et vérifie tes bouées.' : '');
   } else if (racing() && lastCmp && !lastCmp.c.over) {
     const a = Math.abs(lastCmp.c.lead);
