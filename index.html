@@ -87,6 +87,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 /* Résumé de la route */
 .best{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:8px}
 .best .big{font-family:var(--font-display);font-size:1.9rem;font-weight:700;line-height:1.1}
+.best .keep{font-family:var(--font-display);font-size:1.35rem;font-weight:700;color:var(--stbd)}.best .keep.change{color:var(--warn)}
 .best .sub{color:var(--muted);font-size:.92rem}
 .facts{display:grid;grid-template-columns:minmax(96px,auto) minmax(0,1fr);gap:6px 14px;margin:4px 0 0;font-size:.95rem}
 .facts dt{color:var(--muted)}
@@ -593,6 +594,33 @@ function buildLegs(steps) {
   }
   return legs;
 }
+// Route qui suit des bouées déjà posées, comme le fait le jeu : cap direct sur chaque bouée, puis la meilleure route depuis la dernière.
+function followBuoys(cfg, samples, depT, buoys) {
+  const { coef, penalty } = cfg, W = (la, lo, t) => typeof samples === 'function' ? samples(la, lo, t) : windAt(samples, la, lo, t);
+  const steps = [], SUB = 0.25;
+  let lat = cfg.start.lat, lon = cfg.start.lon, t = depT, tack = 0;
+  for (const b of buoys) {
+    let first = true;
+    for (let guard = 0; ; guard++) {
+      const d = hav(lat, lon, b.lat, b.lon);
+      if (d < 0.2) break;
+      if (guard > 2000 || t - depT > 240) return { ok: false, depT };
+      const h = bearing(lat, lon, b.lat, b.lon), w = W(lat, lon, t), twa = angDiff(h, w.twd);
+      const bs = Math.max(polarSpeed(twa, w.tws) * coef, 0.3), tk = twa > 0 ? 1 : -1;
+      const pen = tack !== 0 && tk !== tack ? penalty / 60 : 0; tack = tk;
+      const dur = Math.min(SUB, d / bs), [la, lo] = d / bs <= SUB ? [b.lat, b.lon] : dest(lat, lon, h, bs * dur);
+      steps.push({ hdg: h, twa, twd: w.twd, tws: w.tws, bs, t0: t, t1: t + dur + pen, lat0: lat, lon0: lon, buoy: first });
+      first = false; lat = la; lon = lo; t += dur + pen;
+    }
+  }
+  if (steps.length) steps[0].buoy = false;
+  const rest = computeRoute({ ...cfg, start: { lat, lon } }, samples, t);
+  if (!rest.ok) return { ok: false, depT };
+  // La première étape après la dernière bouée commence sur cette bouée.
+  if (rest.steps.length && buoys.length) rest.steps[0].buoy = true;
+  const all = steps.concat(rest.steps), dist = all.reduce((s, x) => s + x.bs * (x.t1 - x.t0), 0);
+  return { ok: true, depT, arrT: rest.arrT, dur: rest.arrT - depT, steps: all, dist, end: rest.end, legs: buildLegs(all), kept: true };
+}
 function parseCoord(str) {
   if (typeof str === 'number') return str;
   const s = String(str).trim().toUpperCase().replace(',', '.');
@@ -1059,7 +1087,24 @@ async function run() {
     const base = Math.max(0, nowT()), lastOk = grid.nT - 24;
     if (base >= lastOk) { setStatus('La prévision chargée est trop ancienne. Télécharge le vent à nouveau.', true); return; }
     results = [];
-    if (racing()) await runList(cfg, [base], 'Calcul');
+    if (racing()) {
+      await runList(cfg, [base], 'Calcul');
+      // Bouées déjà posées : on calcule l'arrivée en les suivant et on ne propose d'en changer que si la nouvelle route gagne vraiment du temps.
+      const left = posedLeft(), opt = results[0];
+      if (left.length && opt && opt.ok) {
+        setStatus('Calcul de la route qui suit tes bouées…'); await new Promise(r => setTimeout(r, 20));
+        const kept = followBuoys(cfg, windGrid, base, left);
+        // Pour comparer à armes égales, la nouvelle route est elle aussi refaite en suivant les bouées qu'elle propose.
+        const N = Math.round(num(state.nflags)), H = num(state.fh), nf = N >= 1 && H > 0 ? computeFlags(opt, N, H) : null;
+        const fresh = nf && nf.flags.length && !nf.last ? followBuoys(cfg, windGrid, base, nf.flags) : null;
+        const ref = fresh && fresh.ok ? Math.min(fresh.arrT, opt.arrT) : opt.arrT;
+        if (kept.ok) {
+          const gain = kept.arrT - ref;
+          if (gain < KEEP_GAIN) { kept.keep = { gain, n: left.length }; results = [kept]; }
+          else opt.change = { gain, n: left.length };
+        }
+      }
+    }
     else {
       await runList(cfg, [0, 3, 6, 9, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78, 84, 90, 96].map(o => base + o).filter(t => t < lastOk), 'Calcul');
       const b0 = results[bestIndex()];
@@ -1131,7 +1176,7 @@ function computeFlags(r, N, H) {
   const tEnd = Math.min(r.arrT, r.depT + H), tgt = r.end || target(), P = [];
   for (let i = 0; i < r.steps.length; i++) {
     const s = r.steps[i]; if (s.t0 >= tEnd - 1e-9) break;
-    P.push({ lat: s.lat0, lon: s.lon0, t: s.t0 });
+    P.push({ lat: s.lat0, lon: s.lon0, t: s.t0, buoy: !!s.buoy });
     if (s.t1 >= tEnd - 1e-9) {
       const nx = r.steps[i + 1] ? { lat: r.steps[i + 1].lat0, lon: r.steps[i + 1].lon0 } : tgt, f = Math.min(1, (tEnd - s.t0) / (s.t1 - s.t0));
       P.push({ lat: s.lat0 + (nx.lat - s.lat0) * f, lon: s.lon0 + (nx.lon - s.lon0) * f, t: tEnd });
@@ -1145,13 +1190,16 @@ function computeFlags(r, N, H) {
     return Math.hypot(px - ax - u * dx, py - ay - u * dy);
   };
   const sel = [0, P.length - 1];
+  // Les bouées déjà posées restent dans la liste, telles quelles.
+  P.forEach((p, i) => { if (p.buoy && i > 0 && i < P.length - 1) sel.push(i); }); sel.sort((a, b) => a - b);
+  if (P[P.length - 1].buoy) P[P.length - 1].posed = true;
   const worst = () => {
     let best = { d: 0, i: -1 };
     for (let s = 0; s < sel.length - 1; s++) for (let i = sel[s] + 1; i < sel[s + 1]; i++) { const d = distSeg(P[i], P[sel[s]], P[sel[s + 1]]); if (d > best.d) best = { d, i }; }
     return best;
   };
-  while (sel.length - 1 < N) { const w = worst(); if (w.i < 0 || w.d < 3) break; sel.push(w.i); sel.sort((a, b) => a - b); }
-  return { flags: sel.slice(1).map(i => P[i]), dev: worst().d, last: tEnd >= r.arrT - 1e-6 };
+  while (sel.length - 1 < Math.max(N, sel.length - 1)) { const w = worst(); if (w.i < 0 || w.d < 3) break; sel.push(w.i); sel.sort((a, b) => a - b); }
+  return { flags: sel.slice(1).map(i => ({ ...P[i], posed: P[i].buoy })), dev: worst().d, last: tEnd >= r.arrT - 1e-6 };
 }
 function renderFlags() {
   const box = $('#flags'); box.textContent = ''; flagList = [];
@@ -1163,7 +1211,7 @@ function renderFlags() {
   res.flags.forEach((f, i) => {
     const row = document.createElement('div'); row.className = 'k';
     const a = document.createElement('span'); a.textContent = (i + 1) + ' · ' + dayFmt.format(atT(f.t)).replace(/\.$/, '') + ' ' + hourFmt.format(atT(f.t));
-    const b = document.createElement('span'); b.style.fontFamily = 'var(--font-mono)'; b.textContent = fmtDM(f.lat, 'N', 'S') + ', ' + fmtDM(f.lon, 'E', 'O') + (res.last && i === res.flags.length - 1 ? (goalGate() ? ' (porte)' : ' (destination)') : '');
+    const b = document.createElement('span'); b.style.fontFamily = 'var(--font-mono)'; b.textContent = fmtDM(f.lat, 'N', 'S') + ', ' + fmtDM(f.lon, 'E', 'O') + (f.posed ? ' (déjà posée)' : res.last && i === res.flags.length - 1 ? (goalGate() ? ' (porte)' : ' (destination)') : '');
     row.append(a, b); box.append(row);
   });
   say('Écart maximal avec la route calculée : ' + Math.round(res.dev) + ' Mn.' + (res.dev > 25 ? ' C\'est beaucoup : ajoute des bouées ou couvre moins d\'heures.' : '') + ' Les heures sont indicatives : le bateau tourne en arrivant à la bouée.');
@@ -1230,6 +1278,8 @@ function renderResults() {
   const nx = r.view.find((L, i) => i > 0 && atT(L.t0) > Date.now() && Math.sign(r.view[i - 1].twaAvg) !== Math.sign(L.twaAvg));
   if (nx) fact('Prochain changement de bord', clockFmt.format(atT(nx.t0)) + ', cap ' + Math.round(nx.hdg) + '°, à ' + posOf(nx));
   b.append(dl);
+  if (r.keep) b.append(mk('keep', 'Garde tes bouées'), mk('sub', (r.keep.gain <= 1 / 60 ? 'Aucune autre route trouvée n\'arrive plus tôt' : 'La route la plus rapide trouvée ne gagne que ' + fmtDur(r.keep.gain)) + ' (il faut au moins ' + fmtDur(KEEP_GAIN) + ' pour conseiller de changer). La route et la liste de bouées suivent celles que tu as posées.'));
+  else if (r.change) b.append(mk('keep change', 'Change tes bouées'), mk('sub', 'La nouvelle route arrive ' + fmtDur(r.change.gain) + ' plus tôt qu\'en suivant ' + (r.change.n > 1 ? 'tes ' + r.change.n + ' bouées encore devant toi. Remplace-les' : 'ta bouée encore devant toi. Remplace-la') + ' par la nouvelle liste de l\'onglet Route.'));
   const deps = $('#deps'); deps.textContent = '';
   results.forEach((x, i) => {
     const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'dep'; btn.setAttribute('aria-pressed', String(i === selected));
@@ -1467,7 +1517,7 @@ function drawMap() {
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '19';
+const VERSION = '20';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -1481,6 +1531,14 @@ document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click',
 window.addEventListener('hashchange', () => showTab(location.hash.slice(1), false));
 
 /* ---------- Bouées posées dans le jeu ---------- */
+// Gain minimal, en heures, pour conseiller de changer des bouées déjà posées.
+const KEEP_GAIN = 0.5;
+// Bouées pas encore atteintes, d'après la dernière position saisie.
+function posedLeft() {
+  const p = state.posed; if (!racing() || !p || !p.flags || !p.flags.length) return [];
+  const c = posedCmp(), at = state.posAt || Date.now(), passed = c ? at + c.lead * 3600e3 : Date.now();
+  return p.flags.filter(f => f.ms > passed + 10 * 60e3);
+}
 // Heure à laquelle le bateau atteindra la dernière bouée posée : relue sur la route actuelle quand elle passe à côté, sinon l'heure prévue au moment de la pose.
 function posedEta() {
   const p = state.posed; if (!p || !p.flags || !p.flags.length) return null;
