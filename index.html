@@ -56,7 +56,8 @@ p{margin:0}
 .two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .f{display:flex;flex-direction:column;gap:4px;min-width:0}
 .f>span{font-size:.84rem;color:var(--muted);font-weight:500}
-input,select,button{font:inherit;color:inherit}
+input,select,button,textarea{font:inherit;color:inherit}
+textarea{width:100%;resize:vertical;border:1px solid var(--line);border-radius:6px;padding:10px 12px;background:var(--bg);min-height:7em}
 input:not([type=range]),select{
   width:100%;min-width:0;padding:11px 12px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-size:1rem;
 }
@@ -107,6 +108,12 @@ canvas{display:block;width:100%}
 .readout{font-size:.95rem;line-height:1.4;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:6px;white-space:pre-line;min-height:3.2em}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.85rem;color:var(--muted)}
 .sw{display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.sw.dash{background:repeating-linear-gradient(90deg,var(--c) 0 5px,transparent 5px 8px)}
+.fl{display:inline-block;width:10px;height:8px;margin-right:6px;vertical-align:middle;clip-path:polygon(0 0,100% 50%,0 100%)}
+.wscale{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:center;width:100%}
+.wscale .bar{display:block;height:8px;border-radius:4px;border:1px solid var(--line)}
+.wscale .ticks{grid-column:2;display:flex;justify-content:space-between;font-size:.75rem}
+.wscale .ticks b{font-weight:500}
 .chip{padding:7px 14px;border-radius:999px;font-size:.92rem;font-weight:600}
 .chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
 details{border:1px solid var(--line);border-radius:6px;background:var(--surface);padding:10px 14px}
@@ -216,6 +223,12 @@ details > * + *{margin-top:12px}
           </select></label>
         <label class="f race"><span>Position lue dans le jeu</span><input id="spos" inputmode="text" autocomplete="off" placeholder="48°N 31'46&quot; - 005°W 10'18&quot;"></label>
         <p class="status race" id="sposMsg"></p>
+        <div class="two race">
+          <label class="f"><span>Énergie du skipper (%)</span><input id="energy" inputmode="decimal" autocomplete="off"></label>
+          <span></span>
+          <label class="f"><span>Vent du jeu au bateau (°)</span><input id="qDir" inputmode="decimal" autocomplete="off" placeholder="facultatif"></label>
+          <label class="f"><span>Force (nds)</span><input id="qSpd" inputmode="decimal" autocomplete="off" placeholder="facultatif"></label>
+        </div>
         <details class="race">
           <summary>Saisir latitude et longitude séparément</summary>
           <div class="two">
@@ -233,6 +246,13 @@ details > * + *{margin-top:12px}
             <option value="-20|-32">Large du Brésil (20°S, 32°O)</option>
             <option value="-38|-20">Atlantique Sud (38°S, 20°O)</option>
             <option value="-42|20">Sud de Bonne-Espérance (42°S, 20°E)</option>
+            <option value="gate:-35|20|-65|20">Méridien de Bonne-Espérance (20°E)</option>
+            <option value="gate:-46|70|-65|70">Méridien des Kerguelen (70°E)</option>
+            <option value="gate:-34.5|115.1|-65|115.1">Méridien du cap Leeuwin (115°E)</option>
+            <option value="gate:-47.5|180|-65|180">Antiméridien, sud de la Nouvelle-Zélande (180°)</option>
+            <option value="gate:-56.1|-67.3|-65|-67.3">Méridien du cap Horn (67°O)</option>
+            <option value="gate:0|-40|0|-20">Porte de l'équateur, au retour</option>
+            <option value="48.45|-5.15">Arrivée à Ouessant</option>
             <option value="">Un autre point</option>
           </select></label>
         <div class="two custom">
@@ -281,14 +301,13 @@ details > * + *{margin-top:12px}
     <div class="readout" id="readout">Touche la mer pour lire le vent à cet endroit, à l'heure du curseur. Compare avec le jeu pour vérifier.</div>
     <div class="row race"><button id="btnTapStart" type="button">Prendre ce point comme position du bateau</button></div>
     <div class="legend">
-      <span><i class="sw" style="background:var(--w1)"></i>moins de 8 nds</span>
-      <span><i class="sw" style="background:var(--w2)"></i>8 à 16</span>
-      <span><i class="sw" style="background:var(--w3)"></i>16 à 25</span>
-      <span><i class="sw" style="background:var(--w4)"></i>plus de 25</span>
+      <div class="wscale"><span>Vent</span><i class="bar" id="wbar"></i><span class="ticks"><b>0</b><b>10</b><b>20</b><b>30</b><b>40 nds</b></span></div>
       <span><i class="sw" style="background:var(--port)"></i>route bâbord</span>
       <span><i class="sw" style="background:var(--stbd)"></i>route tribord</span>
-      <span><i class="sw" style="background:var(--accent)"></i>bouées à poser, porte</span>
-      <span><i class="sw" style="background:var(--muted)"></i>calcul précédent</span>
+      <span><i class="fl" style="background:#E0453A"></i>bouées posées</span>
+      <span><i class="fl" style="background:var(--accent)"></i>bouées à poser</span>
+      <span><i class="sw dash" style="--c:var(--muted)"></i>calcul précédent</span>
+      <span><i class="sw dash" style="--c:var(--bad)"></i>limite des glaces</span>
     </div>
     <div class="block">
       <h2>Vent</h2>
@@ -375,7 +394,14 @@ details > * + *{margin-top:12px}
           <label class="f"><span>Pas de calcul</span>
             <select id="dt"><option value="1">1 h, précis</option><option value="2">2 h</option><option value="3">3 h, rapide</option></select></label>
           <label class="f"><span>Durée minimale d'un bord (h)</span><input id="minleg" inputmode="decimal"></label>
-          <label class="f"><span>Perte par manœuvre (min)</span><input id="pen" inputmode="decimal"></label>
+          <label class="f"><span>Barème des manœuvres</span>
+            <select id="penMode"><option value="game">Ultim en équipage, avec l'énergie du skipper</option><option value="manual">Mes propres valeurs, sans énergie</option></select></label>
+          <label class="f"><span>Vitesse pendant une manœuvre (%)</span><input id="penSpeed" inputmode="decimal"></label>
+          <label class="f manual"><span>Perte par virement ou empannage (min)</span><input id="pen" inputmode="decimal"></label>
+          <label class="f manual"><span>Perte par changement de voile (min)</span><input id="sailPen" inputmode="decimal"></label>
+        </div>
+        <p class="hint" id="penHint"></p>
+        <div class="two">
           <label class="f"><span>Coefficient de polaire</span><input id="coef" inputmode="decimal"></label>
         </div>
       </div>
@@ -391,6 +417,14 @@ details > * + *{margin-top:12px}
         </div>
         <div class="row"><button id="btnCal" type="button">Caler la polaire</button></div>
         <p class="status" id="polStatus"></p>
+      </div>
+    </div>
+    <div class="block">
+      <h2>Limite des glaces</h2>
+      <div class="panel">
+        <p class="hint">Recopie les points de la limite affichée par le jeu, d'ouest en est, un par ligne (par exemple « 46 S ; 30 E »). La route ne passe jamais au sud de cette ligne.</p>
+        <label class="f"><span>Points de la limite</span><textarea id="ice" rows="6" spellcheck="false" autocomplete="off" placeholder="46 S ; 30 E"></textarea></label>
+        <p class="status" id="iceStatus"></p>
       </div>
     </div>
     <p class="hint" id="about"></p>
@@ -421,7 +455,8 @@ function dest(lat, lon, brg, nm) {
   const d = nm / R_NM, b = brg * D2R, p1 = lat * D2R, l1 = lon * D2R;
   const p2 = Math.asin(Math.sin(p1) * Math.cos(d) + Math.cos(p1) * Math.sin(d) * Math.cos(b));
   const l2 = l1 + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(p1), Math.cos(d) - Math.sin(p1) * Math.sin(p2));
-  return [p2 / D2R, ((l2 / D2R + 540) % 360) - 180];
+  // Longitude laissée continue (au-delà de ±180°) pour que les routes traversent le Pacifique sans saut.
+  return [p2 / D2R, lon + (l2 - l1) / D2R];
 }
 function angDiff(a, b) { return ((a - b + 540) % 360) - 180; }
 
@@ -459,20 +494,45 @@ function polarSpeed(twa, tws) {
   return v0 * (1 - fi) + v1 * fi;
 }
 
-// Terres approchées (lat, lon) : Atlantique Nord-Est et Sud. Les petites îles isolées ne sont pas tracées.
+// Terres approchées (lat, lon), longitudes entre -180 et 180. Les plus petites îles sont des rectangles.
 const box = (a, b, c, d) => [[a, b], [a, d], [c, d], [c, b]];
 const LAND = [
   // Europe de l'Ouest et Afrique, côte atlantique jusqu'au cap des Aiguilles
   [[48.8,-4.4],[48.4,-4.8],[48.0,-4.8],[47.6,-3.3],[47.2,-2.3],[46.2,-1.4],[45.6,-1.2],[44.6,-1.3],[43.5,-1.8],[43.4,-3.0],[43.6,-6.0],[43.7,-8.0],[43.0,-9.3],[42.2,-8.9],[41.0,-8.7],[39.3,-9.5],[38.7,-9.5],[37.0,-9.0],[36.9,-8.0],[36.2,-6.3],[35.8,-6.0],[34.0,-6.9],[33.6,-7.7],[32.3,-9.3],[31.5,-9.8],[30.4,-9.7],[28.5,-11.5],[27.9,-12.9],[26.1,-14.5],[23.7,-15.9],[21.0,-17.1],[18.1,-16.1],[16.0,-16.6],[14.7,-17.5],[13.4,-16.8],[11.9,-16.1],[10.0,-15.0],[8.5,-13.3],[6.5,-11.0],[4.4,-7.7],
-   [5.0,-4.0],[4.7,-2.0],[5.6,0.0],[6.3,2.4],[6.4,3.4],[4.3,6.0],[4.4,8.5],[3.8,9.5],[1.0,9.4],[-0.7,8.7],[-4.8,11.8],[-6.1,12.3],[-8.8,13.2],[-12.4,13.5],[-15.2,12.1],[-17.3,11.7],[-22.9,14.4],[-26.6,15.1],[-28.6,16.4],[-32.8,17.9],[-34.4,18.4],[-34.9,20.0],[-34.0,25.7],[-30.0,31.0],[-30.0,40.0],[48.8,40.0]],
+   [5.0,-4.0],[4.7,-2.0],[5.6,0.0],[6.3,2.4],[6.4,3.4],[4.3,6.0],[4.4,8.5],[3.8,9.5],[1.0,9.4],[-0.7,8.7],[-4.8,11.8],[-6.1,12.3],[-8.8,13.2],[-12.4,13.5],[-15.2,12.1],[-17.3,11.7],[-22.9,14.4],[-26.6,15.1],[-28.6,16.4],[-32.8,17.9],[-34.4,18.4],[-34.9,20.0],[-34.0,25.7],[-33.0,27.9],[-31.6,29.5],[-29.9,31.0],[-28.8,32.4],[-26.9,32.9],[-25.9,32.9],[-24.5,35.0],[-21.5,35.4],[-19.8,34.8],[-17.9,36.9],[-15.0,40.6],[-10.5,40.4],[-6.8,39.3],[-4.7,39.2],[-1.7,41.5],[2.0,45.3],[4.0,47.6],[7.0,49.7],[10.4,51.3],[11.8,51.2],[12.0,44.0],[20.0,39.0],[29.9,32.6],[36.5,36.0],[48.8,40.0]],
   // Amérique du Sud
   [[10.7,-61.0],[8.5,-60.0],[6.8,-58.2],[5.9,-55.2],[4.9,-52.3],[4.2,-51.5],[1.7,-49.9],[-0.5,-48.0],[-0.6,-47.3],[-2.3,-44.3],[-2.8,-40.0],[-3.7,-38.5],[-5.15,-35.4],[-7.1,-34.8],[-8.1,-34.85],[-9.7,-35.7],[-10.9,-37.0],[-13.0,-38.5],[-16.0,-38.9],[-18.0,-39.5],[-20.3,-40.2],[-22.0,-41.0],[-23.0,-42.0],[-23.0,-43.2],[-24.0,-46.3],[-25.9,-48.6],[-28.6,-48.8],[-32.2,-52.1],[-34.0,-53.5],[-34.9,-54.9],[-34.9,-56.2],[-34.4,-58.4],[-36.3,-56.7],[-38.1,-57.5],[-38.9,-62.1],[-41.0,-62.8],[-42.8,-63.6],[-45.0,-65.6],[-47.8,-65.9],[-50.0,-67.8],[-52.4,-68.4],[-54.7,-65.1],[-55.98,-67.27],[-55.5,-70.0],[-53.0,-74.5],[-50.0,-75.5],[-46.0,-75.5],[-42.0,-74.0],[-37.0,-73.6],[-30.0,-71.5],[-18.3,-70.4],[-14.0,-76.3],[-6.0,-81.1],[-1.0,-80.9],[1.0,-79.5],[7.2,-80.0],[9.0,-79.5],[11.0,-75.0],[12.4,-71.7],[10.6,-66.0]],
   box(32.55, -17.3, 33.0, -16.2),
   box(27.5, -18.3, 29.5, -13.3),
   box(36.9, -31.4, 39.9, -24.9),
   box(14.7, -25.5, 17.3, -22.6),
-  box(-52.4, -61.3, -51.2, -57.7)
+  box(-52.4, -61.3, -51.2, -57.7),
+  // Madagascar, Australie, Tasmanie, Nouvelle-Zélande
+  [[-12.0,49.3],[-15.4,50.2],[-17.0,49.6],[-20.5,48.5],[-25.0,47.1],[-25.6,45.2],[-23.5,43.6],[-21.5,43.6],[-16.2,44.4],[-15.5,46.4],[-13.4,48.2]],
+  [[-10.7,142.5],[-14.5,143.6],[-16.0,145.4],[-19.2,146.8],[-22.5,150.7],[-25.0,152.9],[-28.2,153.6],[-32.5,152.5],[-35.0,150.8],[-37.5,149.9],[-38.8,146.4],[-38.3,144.6],[-38.4,141.6],[-37.2,139.8],[-35.6,138.1],[-34.5,138.3],[-35.1,136.9],[-34.8,135.2],[-32.5,133.8],[-31.6,131.0],[-31.6,128.0],[-33.9,123.6],[-34.8,118.3],[-35.1,117.0],[-34.4,115.1],[-33.6,115.0],[-31.9,115.7],[-27.7,114.2],[-24.5,113.4],[-21.8,114.1],[-20.3,118.8],[-17.9,122.2],[-14.9,125.2],[-13.9,128.2],[-12.3,130.6],[-11.0,132.6],[-12.1,136.8],[-15.0,135.5],[-17.6,140.8],[-12.6,141.6]],
+  [[-40.7,144.7],[-41.0,148.3],[-43.2,148.0],[-43.6,146.9],[-43.6,146.0],[-42.2,145.2]],
+  [[-34.4,172.7],[-36.4,175.0],[-37.5,176.0],[-37.7,178.5],[-39.6,177.0],[-41.6,175.2],[-41.3,174.6],[-39.9,174.6],[-39.0,173.8],[-38.0,174.6],[-36.3,174.2]],
+  [[-40.5,172.7],[-41.1,174.3],[-42.8,173.3],[-44.0,173.0],[-45.9,170.8],[-46.7,169.0],[-46.6,166.5],[-45.0,167.0],[-43.0,170.5],[-41.6,171.9]],
+  box(-47.3, 167.4, -46.7, 168.3),
+  // Îles des mers du Sud
+  box(-37.4, -12.7, -37.0, -12.2), box(-40.4, -10.0, -40.3, -9.8), box(-47.0, 37.6, -46.6, 38.0), box(-46.5, 50.2, -46.0, 52.3),
+  box(-50.0, 68.6, -48.6, 70.6), box(-53.2, 73.2, -52.9, 73.9), box(-38.8, 77.4, -37.7, 77.7), box(-54.8, 158.8, -54.5, 159.0),
+  box(-51.0, 165.8, -50.5, 166.4), box(-52.6, 169.0, -52.4, 169.3), box(-44.4, -176.9, -43.6, -176.1), box(-55.0, -38.1, -53.9, -35.7),
+  box(-54.9, -64.8, -54.7, -63.8), box(-56.6, -68.8, -56.4, -68.6)
 ];
+// Limite des glaces : [longitude, latitude], du plus à l'ouest au plus à l'est. Approximative tant qu'elle n'est pas recopiée du jeu.
+const ICE_DEFAULT = [[-180,-58],[-150,-59],[-120,-59],[-90,-59],[-70,-58],[-50,-52],[-30,-48],[-10,-46],[10,-46],[30,-46],[50,-46],[70,-46],[90,-47],[110,-48],[130,-50],[150,-52],[170,-55],[180,-58]];
+let ICE = ICE_DEFAULT;
+function setIce(list) { ICE = list && list.length >= 2 ? list.slice().sort((a, b) => a[0] - b[0]) : null; }
+const normLon = lon => ((lon % 360) + 540) % 360 - 180;
+// Latitude de la limite des glaces à une longitude donnée (interpolée, en faisant le tour par ±180°).
+function iceLat(lon) {
+  if (!ICE) return -90;
+  const x = normLon(lon), n = ICE.length;
+  for (let i = 0; i < n - 1; i++) { const [a, la] = ICE[i], [b, lb] = ICE[i + 1]; if (x >= a && x <= b) return b > a ? la + (lb - la) * (x - a) / (b - a) : Math.max(la, lb); }
+  const [a, la] = ICE[n - 1], [b0, lb] = ICE[0], b = b0 + 360, xx = x < a ? x + 360 : x;
+  return b > a ? la + (lb - la) * (xx - a) / (b - a) : la;
+}
 function inPoly(lat, lon, poly) {
   let c = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -481,8 +541,11 @@ function inPoly(lat, lon, poly) {
   }
   return c;
 }
+// Terre, Antarctique ou zone des glaces.
 function isLand(lat, lon) {
-  for (const p of LAND) if (inPoly(lat, lon, p)) return true;
+  if (lat < -64 || lat < iceLat(lon)) return true;
+  const x = normLon(lon);
+  for (const p of LAND) if (inPoly(lat, x, p)) return true;
   return false;
 }
 function pathClear(la1, lo1, la2, lo2) {
@@ -509,15 +572,44 @@ function gateGeom(gate) {
     }
   };
 }
+// Manœuvres de l'Ultim en équipage, sans option (relevés ITYC) : durée en secondes et coût en % d'énergie selon le vent,
+// récupération en minutes par point d'énergie. Une énergie basse allonge la manœuvre : ×2,5 à 50 %, ×4 à 0 %.
+const GAME = {
+  tack: { dur: [[10, 180], [20, 211], [30, 240]], cost: [[0, 15], [10, 18], [20, 22.6], [30, 30]] },
+  sail: { dur: [[10, 150], [20, 227], [30, 300]], cost: [[0, 30], [10, 36], [20, 45.2], [30, 60]] },
+  rec: [[5, 5.7], [10, 7.7], [20, 12.5], [33, 15]]
+};
+function lerpTab(T, x) {
+  if (x <= T[0][0]) return T[0][1];
+  for (let i = 1; i < T.length; i++) if (x <= T[i][0]) { const [a, va] = T[i - 1], [b, vb] = T[i]; return va + (vb - va) * (x - a) / (b - a); }
+  return T[T.length - 1][1];
+}
+// Coût des manœuvres faites au début d'un pas : heures de route perdues, et énergie restante (0 à 1).
+function manoeuvre(cfg, tws, E, tack, sail) {
+  if (!cfg.game) return { pen: (tack ? (cfg.penalty || 0) / 60 : 0) + (sail ? (cfg.sailPen || 0) / 60 : 0), E };
+  let pen = 0;
+  for (const [on, k] of [[tack, 'tack'], [sail, 'sail']]) if (on) {
+    pen += lerpTab(GAME[k].dur, tws) * (1 + 3 * (1 - E)) / 3600 * (1 - cfg.game.keep);
+    E = Math.max(0, E - lerpTab(GAME[k].cost, tws) / 100);
+  }
+  return { pen, E };
+}
+const recover = (E, tws, h) => Math.min(1, E + h * 60 / lerpTab(GAME.rec, tws) / 100);
 // Routage par isochrones. t = heures depuis la référence du vent. La destination est un point (cfg.tgt) ou une porte (cfg.gate).
 function computeRoute(cfg, samples, depT) {
-  const { start, tgt, dt, coef, penalty } = cfg, minLeg = cfg.minLeg || 0, G = cfg.gate ? gateGeom(cfg.gate) : null;
-  const SEC = 2.5, maxSteps = Math.ceil(360 / dt);
-  let front = [{ lat: start.lat, lon: start.lon, t: depT, parent: null, tack: 0, tackT: -1e9, step: null }];
-  const heads = []; for (let h = 0; h < 360; h += 5) heads.push(h);
+  const { start, tgt, coef, penalty } = cfg, minLeg = cfg.minLeg || 0, G = cfg.gate ? gateGeom(cfg.gate) : null, sailPen = (cfg.sailPen || 0) / 60;
+  const SEC = 2.5, maxSteps = Math.ceil(360 / cfg.dt) + 48;
+  let front = [{ lat: start.lat, lon: start.lon, t: depT, parent: null, tack: 0, tackT: -1e9, sail: null, en: cfg.E0 == null ? 1 : cfg.E0, step: null }];
+  const headsFor = st => { const h = []; for (let a = 0; a < 360; a += st) h.push(a); return h; };
+  const H5 = headsFor(5), H3 = headsFor(3);
   for (let n = 0; n < maxSteps; n++) {
     const cand = new Map();
     let arrival = null;
+    // Calcul plus fin sur les 24 premières heures, et jusqu'à 72 h tant que le vent reste faible (moins de 10 nds en moyenne sur le front).
+    const el = front[0].t - depT;
+    let fine = el < 24;
+    if (!fine && el < 72) { let s = 0; for (const p of front) s += samples(p.lat, p.lon, p.t).tws; fine = s / front.length < 10; }
+    const dt = fine ? Math.min(cfg.dt, 1) : cfg.dt, heads = fine ? H3 : H5;
     for (const p of front) {
       const w = samples(p.lat, p.lon, p.t);
       const aim = G ? G.near(p.lat, p.lon) : tgt;
@@ -531,13 +623,14 @@ function computeRoute(cfg, samples, depT) {
         const change = p.tack !== 0 && tack !== p.tack;
         // Pas de nouveau changement de bord tant que le bord en cours n'a pas duré minLeg heures.
         if (change && p.t - p.tackT < minLeg - 1e-6) continue;
-        const pen = change ? penalty / 60 : 0, tackT = change ? p.t : p.tackT;
-        const eff = Math.max(dt - pen, 0.05), dist = bs * eff;
-        const step = { hdg: h, twa, twd: w.twd, tws: w.tws, bs, t0: p.t, lat0: p.lat, lon0: p.lon };
+        const sail = Math.abs(twa) < spiFrom(w.tws) ? 1 : 2;
+        const man = manoeuvre(cfg, w.tws, p.en, change, !!(p.sail && sail !== p.sail)), pen = man.pen, tackT = change ? p.t : p.tackT;
+        const eff = Math.max(dt - pen, 0.05), dist = bs * eff, en = recover(man.E, w.tws, dt);
+        const step = { hdg: h, twa, twd: w.twd, tws: w.tws, bs, t0: p.t, lat0: p.lat, lon0: p.lon, en: p.en };
         if (!G && h === bTg && dist >= dTg) {
           if (pathClear(p.lat, p.lon, tgt.lat, tgt.lon)) {
             const tArr = p.t + pen + dTg / bs;
-            if (!arrival || tArr < arrival.t) arrival = { lat: tgt.lat, lon: tgt.lon, t: tArr, parent: p, tack, step: { ...step, t1: tArr } };
+            if (!arrival || tArr < arrival.t) arrival = { lat: tgt.lat, lon: tgt.lon, t: tArr, parent: p, tack, sail, en, step: { ...step, t1: tArr } };
           }
           continue;
         }
@@ -548,7 +641,7 @@ function computeRoute(cfg, samples, depT) {
             const cl = p.lat + (la - p.lat) * s, co = p.lon + (lo - p.lon) * s;
             if (pathClear(p.lat, p.lon, cl, co)) {
               const tArr = p.t + pen + s * eff;
-              if (!arrival || tArr < arrival.t) arrival = { lat: cl, lon: co, t: tArr, parent: p, tack, step: { ...step, t1: tArr } };
+              if (!arrival || tArr < arrival.t) arrival = { lat: cl, lon: co, t: tArr, parent: p, tack, sail, en, step: { ...step, t1: tArr } };
             }
             continue;
           }
@@ -559,7 +652,7 @@ function computeRoute(cfg, samples, depT) {
         const ex = cand.get(key);
         if (ex && ex.rem <= rem) continue;
         if (isLand(la, lo) || !pathClear(p.lat, p.lon, la, lo)) continue;
-        cand.set(key, { lat: la, lon: lo, t: p.t + dt, parent: p, tack, tackT, rem, step: { ...step, t1: p.t + dt } });
+        cand.set(key, { lat: la, lon: lo, t: p.t + dt, parent: p, tack, tackT, sail, en, rem, step: { ...step, t1: p.t + dt } });
       }
     }
     if (arrival) return finishRoute(arrival, depT);
@@ -596,9 +689,9 @@ function buildLegs(steps) {
 }
 // Route qui suit des bouées déjà posées, comme le fait le jeu : cap direct sur chaque bouée, puis la meilleure route depuis la dernière.
 function followBuoys(cfg, samples, depT, buoys) {
-  const { coef, penalty } = cfg, W = (la, lo, t) => typeof samples === 'function' ? samples(la, lo, t) : windAt(samples, la, lo, t);
+  const { coef, penalty } = cfg, W = (la, lo, t) => typeof samples === 'function' ? samples(la, lo, t) : samples(la, lo, t);
   const steps = [], SUB = 0.25;
-  let lat = cfg.start.lat, lon = cfg.start.lon, t = depT, tack = 0;
+  let lat = cfg.start.lat, lon = cfg.start.lon, t = depT, tack = 0, sail = 0, E = cfg.E0 == null ? 1 : cfg.E0;
   for (const b of buoys) {
     let first = true;
     for (let guard = 0; ; guard++) {
@@ -607,14 +700,17 @@ function followBuoys(cfg, samples, depT, buoys) {
       if (guard > 2000 || t - depT > 240) return { ok: false, depT };
       const h = bearing(lat, lon, b.lat, b.lon), w = W(lat, lon, t), twa = angDiff(h, w.twd);
       const bs = Math.max(polarSpeed(twa, w.tws) * coef, 0.3), tk = twa > 0 ? 1 : -1;
-      const pen = tack !== 0 && tk !== tack ? penalty / 60 : 0; tack = tk;
+      const sl = Math.abs(twa) < spiFrom(w.tws) ? 1 : 2;
+      const ch = tack !== 0 && tk !== tack, sc = sail && sl !== sail;
+      const man = manoeuvre(cfg, w.tws, E, ch, !!sc), pen = man.pen; tack = tk; sail = sl;
       const dur = Math.min(SUB, d / bs), [la, lo] = d / bs <= SUB ? [b.lat, b.lon] : dest(lat, lon, h, bs * dur);
-      steps.push({ hdg: h, twa, twd: w.twd, tws: w.tws, bs, t0: t, t1: t + dur + pen, lat0: lat, lon0: lon, buoy: first });
+      steps.push({ hdg: h, twa, twd: w.twd, tws: w.tws, bs, t0: t, t1: t + dur + pen, lat0: lat, lon0: lon, buoy: first, en: E });
+      E = recover(man.E, w.tws, dur + pen);
       first = false; lat = la; lon = lo; t += dur + pen;
     }
   }
   if (steps.length) steps[0].buoy = false;
-  const rest = computeRoute({ ...cfg, start: { lat, lon } }, samples, t);
+  const rest = computeRoute({ ...cfg, start: { lat, lon }, E0: E }, samples, t);
   if (!rest.ok) return { ok: false, depT };
   // La première étape après la dernière bouée commence sur cette bouée.
   if (rest.steps.length && buoys.length) rest.steps[0].buoy = true;
@@ -718,7 +814,7 @@ async function fetchPoints(pts, days, opt, onProg) {
     const part = pts.slice(i, i + CHUNK);
     let res, tries = 0;
     for (;;) {
-      const url = API + '?latitude=' + part.map(p => p[0]).join(',') + '&longitude=' + part.map(p => p[1]).join(',') +
+      const url = API + '?latitude=' + part.map(p => p[0]).join(',') + '&longitude=' + part.map(p => +normLon(p[1]).toFixed(4)).join(',') +
         '&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn&forecast_days=' + Math.min(days, opt.maxDays) + '&timezone=GMT&cell_selection=nearest' + (opt.model ? '&models=' + opt.model : '');
       await throttle(part.length, sec => onProg(i, sec));
       res = await fetch(url);
@@ -742,8 +838,8 @@ async function fetchPoints(pts, days, opt, onProg) {
 const boxPoints = box => { const pts = []; for (let r = 0; r < box.nLat; r++) for (let c = 0; c < box.nLon; c++) pts.push([box.lat0 + r * box.d, box.lon0 + c * box.d]); return pts; };
 const boxCount = b => b.nLat * b.nLon;
 // Zone au pas d (en degrés) couvrant « reach » milles devant le bateau, en direction de la destination.
-function nestBox(tgt, coarse, d, reach, maxPts) {
-  const total = hav(START.lat, START.lon, tgt.lat, tgt.lon), brg = bearing(START.lat, START.lon, tgt.lat, tgt.lon), M = 2;
+function nestBox(tgt, coarse, d, reach, maxPts, margin) {
+  const total = hav(START.lat, START.lon, tgt.lat, tgt.lon), brg = bearing(START.lat, START.lon, tgt.lat, tgt.lon), M = margin || 2;
   const cLa1 = coarse.lat0 + (coarse.nLat - 1) * coarse.d, cLo1 = coarse.lon0 + (coarse.nLon - 1) * coarse.d;
   for (const k of [1, 0.75, 0.5]) {
     const p = dest(START.lat, START.lon, brg, Math.min(total, reach * k));
@@ -754,14 +850,17 @@ function nestBox(tgt, coarse, d, reach, maxPts) {
   }
   return null;
 }
-// Trois niveaux : 2° sur tout le trajet (10 jours), 1° sur environ deux jours et demi de route, 0,5° sur les prochaines 24 heures.
+// Quatre niveaux : 2° sur tout le trajet (10 jours), 1° sur environ deux jours et demi de route, 0,5° sur environ 24 heures, 0,25° (la résolution du jeu) sur les douze prochaines heures.
 async function fetchWind(tgt, onProgress) {
   const box = gridBox(), plan = [{ box, days: 10 }];
   const b1 = nestBox(tgt, box, 1, 1500, 520), b2 = nestBox(tgt, box, 0.5, 600, 650);
   if (b1) plan.push({ box: b1, days: 5 });
   if (b2) plan.push({ box: b2, days: 3 });
+  const b3 = nestBox(tgt, box, 0.25, 260, 400, 1);
+  if (b3) plan.push({ box: b3, days: 2 });
   let total = plan.reduce((s, p) => s + boxCount(p.box), 0);
-  while (total > RATE.budget && plan.length > 1) total -= boxCount(plan.pop().box);
+  // Au-delà du budget de points, on renonce d'abord à la grille à 1°, puis à 0,5°, puis à 0,25°.
+  for (const d of [1, 0.5, 0.25]) { if (total <= RATE.budget) break; const i = plan.findIndex((p, k) => k > 0 && p.box.d === d); if (i > 0) total -= boxCount(plan.splice(i, 1)[0].box); }
   const opt = { model: 'gfs_global', maxDays: 10, settled: false }, grids = [];
   let done = 0, note = '';
   for (let i = 0; i < plan.length; i++) {
@@ -775,13 +874,13 @@ async function fetchWind(tgt, onProgress) {
       note = ' Une partie de la grille fine n\'a pas pu être chargée : ' + (e && e.message ? e.message : e); break;
     }
   }
-  return { g: grids[0], nests: grids.slice(1).reverse(), note, model: opt.model };
+  return { g: grids[0], nests: grids.slice(1).sort((x, y) => x.d - y.d), note, model: opt.model };
 }
 
 /* ---------- Interface ---------- */
 const $ = s => document.querySelector(s);
 const STORE_KEY = 'jv-routage-auto-v5';
-const DEFAULT_STATE = { preset: '16.5|-27', tlat: '16.5', tlon: '-27', coef: '1.00', pen: '8', dt: '2', cTws: '', cTwa: '', cBs: '', mode: 'start', slat: '', slon: '', simple: true, minleg: '4', nflags: '6', fh: '24', cal: [], raceStart: '2026-11-11T22:29', posed: null, posAt: 0, splits: {} };
+const DEFAULT_STATE = { preset: '16.5|-27', tlat: '16.5', tlon: '-27', coef: '1.00', pen: '8', dt: '2', cTws: '', cTwa: '', cBs: '', mode: 'start', slat: '', slon: '', simple: true, minleg: '4', nflags: '6', fh: '24', cal: [], sailPen: '0', penMode: 'game', penSpeed: '50', energy: '100', ice: '', raceStart: '2026-11-11T22:29', posed: null, posAt: 0, splits: {} };
 const OUESSANT = { lat: 48.45, lon: -5.15 };
 let START = OUESSANT;
 let state = loadState(), results = [], selected = 0, tapped = null;
@@ -810,14 +909,22 @@ function fmtDM(v, pos, neg) {
 }
 const posOf = L => fmtDM(L.steps[0].lat0, 'N', 'S') + ', ' + fmtDM(L.steps[0].lon0, 'E', 'O');
 // La destination est un point, ou une porte (segment à franchir, au meilleur endroit).
+// Longitude de destination ramenée du bon côté du bateau : le tour du monde se fait vers l'est, donc une cible à l'ouest de plus de 60° est un tour plus loin.
+function uw(lon) {
+  if (isNaN(lon)) return lon;
+  const ref = START ? START.lon : 0;
+  while (lon < ref - 60) lon += 360;
+  while (lon > ref + 300) lon -= 360;
+  return lon;
+}
 function goalGate() {
   const m = /^gate:(.+)$/.exec(state.preset || ''); if (!m) return null;
   const v = m[1].split('|').map(Number); if (v.length !== 4 || v.some(isNaN)) return null;
-  return { a: { lat: v[0], lon: v[1] }, b: { lat: v[2], lon: v[3] } };
+  return { a: { lat: v[0], lon: uw(v[1]) }, b: { lat: v[2], lon: uw(v[3]) } };
 }
 function target() {
   const g = goalGate();
-  return g ? { lat: (g.a.lat + g.b.lat) / 2, lon: (g.a.lon + g.b.lon) / 2 } : { lat: parseCoord(state.tlat), lon: parseCoord(state.tlon) };
+  return g ? { lat: (g.a.lat + g.b.lat) / 2, lon: (g.a.lon + g.b.lon) / 2 } : { lat: parseCoord(state.tlat), lon: uw(parseCoord(state.tlon)) };
 }
 const goalPts = () => { const g = goalGate(); return g ? [g.a, g.b] : [target()]; };
 function setResultsVisible(v) {
@@ -826,7 +933,7 @@ function setResultsVisible(v) {
 }
 function setStatus(m, err) { const el = $('#status'); el.textContent = m; el.classList.toggle('err', !!err); }
 
-const FIELDS = ['coef', 'pen', 'dt', 'tlat', 'tlon', 'cTws', 'cTwa', 'cBs', 'slat', 'slon', 'minleg', 'nflags', 'fh', 'raceStart'];
+const FIELDS = ['energy', 'penMode', 'penSpeed', 'sailPen', 'ice', 'coef', 'pen', 'dt', 'tlat', 'tlon', 'cTws', 'cTwa', 'cBs', 'slat', 'slon', 'minleg', 'nflags', 'fh', 'raceStart'];
 const racing = () => state.mode === 'race';
 function updateStart() {
   const la = parseCoord(state.slat), lo = parseCoord(state.slon);
@@ -836,8 +943,18 @@ function updateStart() {
     ? 'La route part de ce point, maintenant. Tu peux aussi toucher la mer dans l\'onglet Carte, puis « Prendre ce point comme position du bateau ».'
     : 'L\'outil compare plusieurs heures de départ depuis la ligne.';
 }
-function readSettings() { FIELDS.forEach(k => { state[k] = $('#' + k).value; }); state.preset = $('#preset').value; state.mode = $('#mode').value; saveState(); updateStart(); }
-function fillSettings() { FIELDS.forEach(k => { $('#' + k).value = state[k]; }); $('#preset').value = state.preset; $('#mode').value = state.mode; updateStart(); }
+function readSettings() { FIELDS.forEach(k => { state[k] = $('#' + k).value; }); state.preset = $('#preset').value; state.mode = $('#mode').value; saveState(); applyIce(); updateStart(); }
+function fillSettings() { FIELDS.forEach(k => { $('#' + k).value = state[k]; }); $('#preset').value = state.preset; $('#mode').value = state.mode; applyIce(); updateStart(); }
+// Limite des glaces saisie dans Réglages, une ligne par point ; vide = limite approximative par défaut.
+function applyIce() {
+  const el = $('#iceStatus'), lines = String(state.ice || '').split('\n').map(s => s.trim()).filter(Boolean);
+  if (!lines.length) { setIce(ICE_DEFAULT); if (el) el.textContent = 'Limite approximative par défaut (' + ICE_DEFAULT.length + ' points). Remplace-la par celle du jeu dès que possible.'; return; }
+  const pts = [], bad = [];
+  lines.forEach((l, i) => { const p = parsePos(l); if (p) pts.push([p.lon, p.lat]); else bad.push(i + 1); });
+  if (pts.length < 2) { setIce(ICE_DEFAULT); if (el) el.textContent = 'Il faut au moins deux points lisibles. Limite par défaut utilisée.'; return; }
+  setIce(pts);
+  if (el) el.textContent = pts.length + ' points lus.' + (bad.length ? ' Ligne' + (bad.length > 1 ? 's' : '') + ' illisible' + (bad.length > 1 ? 's' : '') + ' ignorée' + (bad.length > 1 ? 's' : '') + ' : ' + bad.join(', ') + '.' : '');
+}
 $('#mode').addEventListener('change', () => { readSettings(); results = []; setResultsVisible(false); dropRoute(); pv = null; updateDash(); drawMap(); });
 ['slat', 'slon'].forEach(id => $('#' + id).addEventListener('input', () => { state.posAt = Date.now(); readSettings(); updateDash(); drawMap(); }));
 // Lit une position complète : format du jeu (48°N 31'46" - 005°W 10'18"), « 43 25 N 14 54 W », ou décimal « 43.4 -14.9 ».
@@ -917,9 +1034,9 @@ async function restoreSession() {
   const w = await idbGet('wind');
   if (!w || !w.grid || grid) return;                                   // rien d'enregistré, ou un vent vient d'être chargé
   if ((Date.now() - w.grid.t0) / 3600e3 >= w.grid.nT - 24) return;     // prévision trop ancienne pour servir
-  grid = w.grid; nests = w.nests || (w.fine ? [w.fine] : []);
+  grid = w.grid; nests = w.nests || (w.fine ? [w.fine] : []); gfsRun = w.run || null;
   const ws = $('#windStatus'); ws.classList.remove('err');
-  ws.textContent = 'Vent du ' + clockFmt.format(new Date(w.at)) + ' retrouvé, prévision jusqu\'au ' + clockFmt.format(atT(grid.nT - 1)) + '. Télécharge-le à nouveau pour une prévision plus récente.';
+  ws.textContent = 'Vent du ' + clockFmt.format(new Date(w.at)) + ' retrouvé. ' + runText(gfsRun) + 'Prévision jusqu\'au ' + clockFmt.format(atT(grid.nT - 1)) + '. Télécharge-le à nouveau pour une prévision plus récente.';
   const sl = $('#tsl'); sl.max = String(grid.nT - 1); sl.disabled = false; sl.value = String(Math.round(Math.min(Math.max(nowT(), 0), grid.nT - 1)));
   setStatus('Vent retrouvé. Touche « Mettre à jour la route » pour repartir de ta position.');
   showCal();
@@ -1008,7 +1125,21 @@ $('#preset').addEventListener('change', e => {
   readSettings(); syncCustom(); pv = null; drawMap();
 });
 ['tlat', 'tlon'].forEach(id => $('#' + id).addEventListener('input', () => { $('#preset').value = ''; readSettings(); drawMap(); }));
-['coef', 'pen', 'dt', 'minleg'].forEach(id => $('#' + id).addEventListener('change', readSettings));
+$('#energy').addEventListener('change', readSettings);
+['coef', 'pen', 'dt', 'minleg', 'sailPen', 'penSpeed'].forEach(id => $('#' + id).addEventListener('change', () => { readSettings(); showPen(); }));
+$('#penMode').addEventListener('change', () => { readSettings(); showPen(); });
+// Barème du jeu : durée de la manœuvre en minutes, 10 nds de vent ou moins, puis 30 nds ou plus ; entre les deux, l'outil interpole.
+const keepSpeed = () => { const sp = num(state.penSpeed); return (isNaN(sp) ? 50 : Math.min(Math.max(sp, 0), 100)) / 100; };
+function showPen() {
+  if (state.penMode !== 'manual' && state.penMode !== 'game') state.penMode = 'game';
+  $('#penMode').value = state.penMode;
+  const man = state.penMode === 'manual';
+  document.querySelectorAll('.manual').forEach(el => { el.hidden = !man; });
+  const g = { game: { keep: keepSpeed() } }, m = (E, k) => (manoeuvre(g, 20, E, k === 'tack', k === 'sail').pen * 60).toFixed(1).replace('.', ',');
+  $('#penHint').textContent = man ? 'Minutes de route perdues à chaque manœuvre, saisies à la main.'
+    : 'Barème du jeu : la manœuvre dure plus longtemps dans la brise et quand le skipper est fatigué, et chaque manœuvre lui coûte de l\'énergie (un empannage environ 23 %, un changement de voile 45 % à 20 nds). À 20 nds, un empannage fait perdre ' + m(1, 'tack') + ' min de route avec 100 % d\'énergie, ' + m(0.5, 'tack') + ' min à 50 % et ' + m(0, 'tack') + ' min à 0 %. L\'énergie remonte d\'un point toutes les 5 min 42 par 5 nds, 8 min par 10 nds, 12 min 30 par 20 nds et 15 min au-delà de 33 nds.';
+}
+$('#ice').addEventListener('change', () => { readSettings(); if (results.length) { results = []; setResultsVisible(false); dropRoute(); setStatus('Limite des glaces modifiée. Mets à jour la route.'); } drawMap(); });
 function polMsg(m, err) { const el = $('#polStatus'); el.textContent = m; el.classList.toggle('err', !!err); }
 $('#btnCal').addEventListener('click', () => {
   readSettings();
@@ -1021,6 +1152,16 @@ $('#btnCal').addEventListener('click', () => {
 });
 
 let windLoadedAt = 0, refreshing = false;
+// Heure de la prévision GFS utilisée par le service (une nouvelle toutes les 6 heures : 0 h, 6 h, 12 h, 18 h UTC).
+let gfsRun = null;
+async function fetchRun() {
+  try {
+    const r = await fetch('https://api.open-meteo.com/data/ncep_gfs025/static/meta.json'); if (!r.ok) return null;
+    const j = await r.json(), s = +j.last_run_initialisation_time;
+    return s > 0 ? s * 1000 : null;
+  } catch (e) { return null; }
+}
+const runText = ms => ms ? 'Prévision GFS de ' + new Date(ms).getUTCHours() + ' h UTC (' + clockFmt.format(new Date(ms)) + ', heure française). ' : '';
 async function loadWind() {
   readSettings();
   const tgt = target(), ws = $('#windStatus'), btn = $('#btnWind');
@@ -1030,9 +1171,10 @@ async function loadWind() {
   try {
     const got = await fetchWind(tgt, (a, b, sec) => say(sec ? 'Pause de ' + sec + ' s, le service météo limite le nombre de points par minute. ' + a + ' / ' + b + ' points reçus.' : 'Téléchargement du vent… ' + a + ' / ' + b + ' points'));
     grid = got.g; nests = got.nests; windLoadedAt = Date.now();
-    idbSet('wind', { grid, nests, at: windLoadedAt }); dropRoute();
+    gfsRun = got.model ? await fetchRun() : null;
+    idbSet('wind', { grid, nests, at: windLoadedAt, run: gfsRun }); dropRoute();
     const nFine = nests.reduce((s, n) => s + n.nLat * n.nLon, 0);
-    say('Vent chargé : ' + (grid.nLat * grid.nLon + nFine) + ' points' + (nFine ? ', dont ' + nFine + ' en grille fine devant le bateau' : '') + (got.model ? ', modèle GFS seul' : ', mélange par défaut du service') + '. Prévision jusqu\'au ' + clockFmt.format(atT(grid.nT - 1)) + ', téléchargée à ' + hourFmt.format(new Date()) + '.' + got.note);
+    say('Vent chargé : ' + (grid.nLat * grid.nLon + nFine) + ' points' + (nFine ? ', dont ' + nFine + ' en grille fine devant le bateau' : '') + (got.model ? ', modèle GFS seul' : ', mélange par défaut du service') + '. ' + runText(gfsRun) + 'Prévision jusqu\'au ' + clockFmt.format(atT(grid.nT - 1)) + ', téléchargée à ' + hourFmt.format(new Date()) + '.' + got.note);
     showCal();
     const sl = $('#tsl'); sl.max = String(grid.nT - 1); sl.disabled = false; sl.value = String(Math.round(Math.min(Math.max(nowT(), 0), grid.nT - 1)));
     results = []; setResultsVisible(false); tapped = null;
@@ -1053,22 +1195,35 @@ async function refreshAll() {
   try {
     const stale = !grid || Date.now() - windLoadedAt > 3 * 3600e3 || [START, ...goalPts()].some(p => isNaN(p.lat) || isNaN(p.lon) || !inGrid(p.lat, p.lon));
     if (stale && !(await loadWind())) return;
+    // Relevé du vent du jeu saisi avec la position : il corrige la prévision avant le calcul.
+    const qd = $('#qDir').value.trim(), qs = $('#qSpd').value.trim();
+    let qNote = '';
+    if (qd || qs) {
+      const err = addReading(num(qd), num(qs), START, nowT());
+      if (err) qNote = 'Relevé de vent non pris en compte : ' + err;
+      else { $('#qDir').value = ''; $('#qSpd').value = ''; showCal(); qNote = 'Relevé de vent ajouté (' + cal.n + ' en tout).'; }
+    }
     await run();
+    if (qNote) setStatus($('#status').textContent + ' ' + qNote, qNote.startsWith('Relevé de vent non'));
   } finally { refreshing = false; btn.disabled = false; }
 }
 $('#btnGo').addEventListener('click', refreshAll);
 
 $('#btnRun').addEventListener('click', run);
+// Énergie du skipper saisie avec la position (le cercle en haut à gauche dans le jeu) ; 100 % avant le départ.
+function energyNow() { if (!racing()) return 1; const e = num(state.energy); return isNaN(e) ? 1 : Math.min(Math.max(e, 0), 100) / 100; }
 function makeCfg() {
   // Renvoie la configuration du calcul, ou null après avoir affiché ce qui manque.
   const tgt = target(), coef = num(state.coef), penalty = num(state.pen), dt = num(state.dt);
-  if (isNaN(tgt.lat) || isNaN(tgt.lon) || isLand(tgt.lat, tgt.lon)) { setStatus('La destination est invalide ou sur terre.', true); return null; }
+  const gg = goalGate(), open = gg ? Array.from({ length: 21 }, (_, i) => i / 20).some(f => !isLand(gg.a.lat + (gg.b.lat - gg.a.lat) * f, gg.a.lon + (gg.b.lon - gg.a.lon) * f)) : !isLand(tgt.lat, tgt.lon);
+  if (isNaN(tgt.lat) || isNaN(tgt.lon) || !open) { setStatus(gg ? 'La porte est entièrement sur terre ou dans la zone des glaces.' : 'La destination est invalide, sur terre ou dans la zone des glaces.', true); return null; }
   if (racing() && START === OUESSANT) { setStatus('Indique d\'abord la position du bateau, lue dans le jeu.', true); return null; }
   if (isLand(START.lat, START.lon)) { setStatus('La position de départ est sur terre. Vérifie la latitude et la longitude (O = négatif ou lettre W).', true); return null; }
   if (!inGrid(START.lat, START.lon) || goalPts().some(p => !inGrid(p.lat, p.lon))) { setStatus('Le départ ou la destination sort de la zone de vent chargée. Mets à jour la route pour recharger le vent.', true); return null; }
   if (isNaN(coef) || coef <= 0 || isNaN(penalty) || penalty < 0) { setStatus('Vérifie le coefficient et la perte par manœuvre.', true); return null; }
   const ml = num(state.minleg);
-  return { start: START, tgt, gate: goalGate(), dt, coef, penalty, minLeg: isNaN(ml) || ml < 0 ? 0 : ml };
+  const sp = num(state.sailPen);
+  return { start: START, tgt, gate: goalGate(), dt, coef, penalty, minLeg: isNaN(ml) || ml < 0 ? 0 : ml, sailPen: isNaN(sp) || sp < 0 ? 0 : sp, game: state.penMode === 'manual' ? null : { keep: keepSpeed() }, E0: energyNow() };
 }
 async function runList(cfg, times, label) {
   for (let i = 0; i < times.length; i++) {
@@ -1147,18 +1302,22 @@ function showCal() {
   if (cal.n > 1) { const ks = state.cal.map(e => e.k), lo = Math.min(...ks), hi = Math.max(...ks); if (hi - lo > 0.2) el.textContent += ' Tes relevés ne sont pas d\'accord entre eux (de × ' + lo.toFixed(2).replace('.', ',') + ' à × ' + hi.toFixed(2).replace('.', ',') + ') : la correction est peu fiable.'; }
 }
 function calMsg(m, err) { const el = $('#calStatus'); el.textContent = m; el.classList.toggle('err', !!err); }
-$('#calAdd').addEventListener('click', () => {
-  if (!grid) { calMsg('Télécharge d\'abord le vent.', true); return; }
-  const gd = num($('#gDir').value), gs = num($('#gSpd').value);
-  if (isNaN(gd) || gd < 0 || gd > 360 || isNaN(gs) || gs < 0) { calMsg('Saisis la direction (0 à 360) et la force du vent lues dans le jeu.', true); return; }
-  const p = tapped || (racing() && START !== OUESSANT ? START : null);
-  if (!p) { calMsg('Touche d\'abord la mer sur la carte, à l\'endroit du relevé.', true); return; }
-  if (isLand(p.lat, p.lon) || !inGrid(p.lat, p.lon)) { calMsg('Ce point est sur terre ou hors de la zone de vent chargée.', true); return; }
-  const w = windRaw(p.lat, p.lon, curT());
-  if (w.tws < 4 || gs < 4) { calMsg('Le vent est trop faible ici pour un calage fiable. Choisis un point avec plus de 4 nds.', true); return; }
+// Ajoute un relevé du vent du jeu ; renvoie un message d'erreur, ou null si le relevé est enregistré.
+function addReading(gd, gs, p, t) {
+  if (!grid) return 'Télécharge d\'abord le vent.';
+  if (isNaN(gd) || gd < 0 || gd > 360 || isNaN(gs) || gs < 0) return 'Saisis la direction (0 à 360) et la force du vent lues dans le jeu.';
+  if (!p) return 'Touche d\'abord la mer sur la carte, à l\'endroit du relevé.';
+  if (isLand(p.lat, p.lon) || !inGrid(p.lat, p.lon)) return 'Ce point est sur terre ou hors de la zone de vent chargée.';
+  const w = windRaw(p.lat, p.lon, t);
+  if (w.tws < 4 || gs < 4) return 'Le vent est trop faible pour un calage fiable (moins de 4 nds).';
   const k = gs / w.tws, d = angDiff(gd, w.twd);
-  if (k < 0.6 || k > 1.7 || Math.abs(d) > 40) { calMsg('L\'écart avec la prévision est trop grand (' + w.tws.toFixed(1) + ' nds, ' + Math.round(w.twd) + '° prévus). Vérifie le point touché et l\'heure du curseur.', true); return; }
-  state.cal = (state.cal || []).concat([{ k, d, at: Date.now() }]).slice(-5); saveState();
+  if (k < 0.6 || k > 1.7 || Math.abs(d) > 40) return 'L\'écart avec la prévision est trop grand (' + w.tws.toFixed(1) + ' nds, ' + Math.round(w.twd) + '° prévus). Vérifie le relevé.';
+  state.cal = (state.cal || []).concat([{ k, d, at: Date.now() }]).slice(-5); saveState(); updateCal();
+  return null;
+}
+$('#calAdd').addEventListener('click', () => {
+  const err = addReading(num($('#gDir').value), num($('#gSpd').value), tapped || (racing() && START !== OUESSANT ? START : null), curT());
+  if (err) { calMsg(err, true); return; }
   $('#gDir').value = ''; $('#gSpd').value = '';
   $('#calStatus').classList.remove('err'); showCal();
   if (results.length) { results = []; setResultsVisible(false); dropRoute(); setStatus('Correction du vent modifiée. Relance le calcul.'); }
@@ -1301,7 +1460,7 @@ function renderResults() {
     if (!parts.length) return; nKeys++;
     const row = document.createElement('div'); row.className = 'k';
     const a = document.createElement('span'); a.textContent = dayFmt.format(atT(L.t0)).replace(/\.$/, '') + ' ' + hourFmt.format(atT(L.t0));
-    const b2 = document.createElement('span'); const txt = parts.join(', '); b2.textContent = txt.charAt(0).toUpperCase() + txt.slice(1) + ' · à ' + posOf(L);
+    const b2 = document.createElement('span'); const txt = parts.join(', '); b2.textContent = txt.charAt(0).toUpperCase() + txt.slice(1) + ' · à ' + posOf(L) + (r.steps.length && L.steps[0].en != null && state.penMode !== 'manual' ? ' · énergie ' + Math.round(L.steps[0].en * 100) + ' % avant' : '');
     row.append(a, b2); keys.append(row);
   });
   if (!nKeys) { const row = document.createElement('div'); row.className = 'hint'; row.textContent = 'Aucun empannage ni changement de voile sur cette route.'; keys.append(row); }
@@ -1353,6 +1512,10 @@ function fitAll() {
   let lo0 = Math.min(...pts.map(p => p[1])) - 5, lo1 = Math.max(...pts.map(p => p[1])) + 3;
   const k = Math.cos(((la0 + la1) / 2) * D2R), sc = Math.min(mapW / ((lo1 - lo0) * k), mapH / (la1 - la0));
   pv = { cLat: (la0 + la1) / 2, cLon: (lo0 + lo1) / 2, sc: Math.min(Math.max(sc, 4), 400), k };
+  // Pas de carte au-delà de 78° de latitude : on recentre si la vue déborde.
+  const half = mapH / 2 / pv.sc;
+  if (pv.cLat - half < -78) pv.cLat = Math.min(-78 + half, 0);
+  if (pv.cLat + half > 78) pv.cLat = Math.max(78 - half, 0);
 }
 function XY(lat, lon) { return [mapW / 2 + (lon - pv.cLon) * pv.k * pv.sc, mapH / 2 - (lat - pv.cLat) * pv.sc]; }
 function LL(x, y) { return [pv.cLat - (y - mapH / 2) / pv.sc, pv.cLon + (x - mapW / 2) / (pv.k * pv.sc)]; }
@@ -1392,89 +1555,195 @@ function updateReadout() {
   if (b) lines.push('Bateau à cette heure : cap ' + Math.round(b.s.hdg) + '° · angle du vent ' + Math.round(Math.abs(b.s.twa)) + '° ' + (b.s.twa > 0 ? 'bâbord' : 'tribord') + ' · ' + b.s.bs.toFixed(1) + ' nds');
   el.textContent = lines.length ? lines.join('\n') : 'Touche la mer pour lire le vent à cet endroit, à l\'heure du curseur. Compare avec le jeu pour vérifier.';
 }
+// Couleurs du fond selon la force du vent (nds). Jour : teintes de carte papier ; nuit : teintes sourdes d'écran de bord.
+const WIND_SCALE = {
+  day: [[0, '#E4ECF2'], [5, '#CFE1EF'], [10, '#B5DCE0'], [15, '#C2E0B4'], [20, '#EADFA0'], [25, '#F1C18E'], [30, '#EB9C8B'], [40, '#D59BC8']],
+  night: [[0, '#0E1C2A'], [5, '#123150'], [10, '#14535E'], [15, '#1E6243'], [20, '#5E5A1F'], [25, '#6E4420'], [30, '#6B2A2C'], [40, '#5A2557']]
+};
+const hexRgb = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const SCALE_RGB = { day: WIND_SCALE.day.map(([v, h]) => [v, hexRgb(h)]), night: WIND_SCALE.night.map(([v, h]) => [v, hexRgb(h)]) };
+function windRgb(tws, theme) {
+  const S = SCALE_RGB[theme];
+  if (tws <= S[0][0]) return S[0][1];
+  for (let i = 1; i < S.length; i++) if (tws <= S[i][0]) { const [a, ca] = S[i - 1], [b, cb] = S[i], f = (tws - a) / (b - a); return [0, 1, 2].map(k => ca[k] + (cb[k] - ca[k]) * f); }
+  return S[S.length - 1][1];
+}
+const isNight = () => { const v = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(); const [r, g, b] = hexRgb(v.length === 7 ? v : '#ffffff'); return (r * 0.3 + g * 0.59 + b * 0.11) < 90; };
+const fmtLat = la => Math.abs(Math.round(la)) + '°' + (la > 0.01 ? 'N' : la < -0.01 ? 'S' : '');
+const fmtLon = lo => { const x = Math.round(normLon(lo)); return Math.abs(x) + '°' + (x > 0 && x < 180 ? 'E' : x < 0 ? 'O' : ''); };
+let fieldCv = null;
 function drawMap() {
   const cv = $('#map'), W = cv.clientWidth; if (!W) return;
   mapW = W; mapH = Math.round(Math.min(Math.max(window.innerHeight - 330, 320), 640));
   if (!pv) fitAll();
-  const H = mapH, cs = getComputedStyle(document.documentElement), col = n => cs.getPropertyValue(n).trim();
+  const H = mapH, cs = getComputedStyle(document.documentElement), col = n => cs.getPropertyValue(n).trim(), theme = isNight() ? 'night' : 'day';
   const dpr = window.devicePixelRatio || 1;
   cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.height = H + 'px';
   const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  c.fillStyle = col('--sea'); c.fillRect(0, 0, W, H);
-  const [laT, loL] = LL(0, 0), [laB, loR] = LL(W, H), span = Math.max(laT - laB, loR - loL), gstep = span > 40 ? 10 : span > 18 ? 5 : span > 8 ? 2 : 1;
-  c.strokeStyle = col('--line'); c.lineWidth = 1; c.fillStyle = col('--muted'); c.font = '11px ' + col('--font-mono');
-  for (let la = Math.ceil(laB / gstep) * gstep; la <= laT; la += gstep) { const y = XY(la, 0)[1]; c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); c.fillText(la + '°', 4, y - 3); }
-  for (let lo = Math.ceil(loL / gstep) * gstep; lo <= loR; lo += gstep) { const x = XY(0, lo)[0]; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); c.fillText(lo + '°', x + 3, H - 4); }
-  c.fillStyle = col('--land'); c.strokeStyle = col('--coast');
-  LAND.forEach(poly => { c.beginPath(); poly.forEach((p, i) => { const [x, y] = XY(p[0], p[1]); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath(); c.fill(); c.stroke(); });
-  const t = curT();
+  const sea = col('--sea'), ink = col('--fg'), halo = theme === 'night' ? 'rgba(8,20,29,0.85)' : 'rgba(250,252,253,0.9)';
+  const label = (txt, x, y, font, color, align) => { c.font = font; c.textAlign = align || 'left'; c.lineJoin = 'round'; c.lineWidth = 3.5; c.strokeStyle = halo; c.strokeText(txt, x, y); c.fillStyle = color || ink; c.fillText(txt, x, y); c.textAlign = 'left'; };
+  // Étiquettes qui ne se chevauchent pas : à droite du point, sinon à gauche, sinon au-dessus, sinon pas affichées.
+  const taken = [{ x0: W - 64, y0: 0, x1: W, y1: 236 }];
+  const hit = (a) => a.x0 < 2 || a.x1 > W - 2 || a.y0 < 2 || a.y1 > H - 2 || taken.some(b => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0);
+  const reserve = (x, y, r) => taken.push({ x0: x - r, y0: y - r, x1: x + r, y1: y + r });
+  const place = (txt, x, y, font, color) => {
+    c.font = font; const w = c.measureText(txt).width, h = 13;
+    for (const [lx, ly] of [[x + 8, y + 4], [x - 8 - w, y + 4], [x - w / 2, y - 10], [x - w / 2, y + 17]]) {
+      const box = { x0: lx - 2, y0: ly - h + 2, x1: lx + w + 2, y1: ly + 4 };
+      if (!hit(box)) { taken.push(box); label(txt, lx, ly, font, color); return true; }
+    }
+    return false;
+  };
+  const fBody = col('--font-body'), t = curT();
+  const wb = $('#wbar'); if (wb) wb.style.background = 'linear-gradient(90deg,' + WIND_SCALE[theme].map(([v, h]) => h + ' ' + (v / 40 * 100) + '%').join(',') + ')';
+  c.fillStyle = sea; c.fillRect(0, 0, W, H);
+  const [laT, loL] = LL(0, 0), [laB, loR] = LL(W, H);
+
+  // 1. Force du vent en fond de carte
   if (grid) {
-    const cols = [col('--w1'), col('--w2'), col('--w3'), col('--w4')], STEP = 40;
-    c.lineWidth = 1.6; c.lineCap = 'round';
-    for (let y = STEP / 2; y < H; y += STEP) for (let x = STEP / 2; x < W; x += STEP) {
-      const [la, lo] = LL(x, y); if (!inGrid(la, lo) || isLand(la, lo)) continue;
-      const w = windGrid(la, lo, t); if (w.tws < 0.5) continue;
-      const a = ((w.twd + 180) % 360) * D2R, dx = Math.sin(a), dy = -Math.cos(a), L = Math.min(9 + w.tws * 0.65, 30);
-      const cl = cols[w.tws < 8 ? 0 : w.tws < 16 ? 1 : w.tws < 25 ? 2 : 3];
-      c.strokeStyle = cl; c.fillStyle = cl;
-      const x1 = x + dx * L / 2, y1 = y + dy * L / 2;
-      c.beginPath(); c.moveTo(x - dx * L / 2, y - dy * L / 2); c.lineTo(x1, y1); c.stroke();
-      c.beginPath(); c.moveTo(x1, y1); c.lineTo(x1 - dx * 6 + dy * 3.5, y1 - dy * 6 - dx * 3.5); c.lineTo(x1 - dx * 6 - dy * 3.5, y1 - dy * 6 + dx * 3.5); c.closePath(); c.fill();
+    const CELL = 6, fw = Math.ceil(W / CELL), fh = Math.ceil(H / CELL);
+    if (!fieldCv) fieldCv = document.createElement('canvas');
+    fieldCv.width = fw; fieldCv.height = fh;
+    const fc = fieldCv.getContext('2d'), img = fc.createImageData(fw, fh), d = img.data;
+    for (let j = 0; j < fh; j++) for (let i = 0; i < fw; i++) {
+      const [la, lo] = LL((i + 0.5) * CELL, (j + 0.5) * CELL); if (!inGrid(la, lo)) continue;
+      const rgb = windRgb(windGrid(la, lo, t).tws, theme), o = (j * fw + i) * 4;
+      d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
+    }
+    fc.putImageData(img, 0, 0);
+    c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high'; c.drawImage(fieldCv, 0, 0, fw * CELL, fh * CELL);
+  }
+
+  // 2. Quadrillage
+  const span = Math.max(laT - laB, loR - loL), gstep = span > 60 ? 20 : span > 40 ? 10 : span > 18 ? 5 : span > 8 ? 2 : 1;
+  c.strokeStyle = theme === 'night' ? 'rgba(143,165,181,0.18)' : 'rgba(14,34,51,0.12)'; c.lineWidth = 1;
+  for (let la = Math.ceil(laB / gstep) * gstep; la <= laT; la += gstep) { const y = Math.round(XY(la, 0)[1]) + 0.5; c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
+  for (let lo = Math.ceil(loL / gstep) * gstep; lo <= loR; lo += gstep) { const x = Math.round(XY(0, lo)[0]) + 0.5; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); }
+
+  // 3. Terres, dessinées aussi un tour plus loin quand la carte passe ±180°
+  c.fillStyle = col('--land'); c.strokeStyle = col('--coast'); c.lineWidth = 1;
+  for (const off of [-360, 0, 360]) {
+    if (loR < -180 + off - 5 || loL > 180 + off + 5) continue;
+    LAND.forEach(poly => { c.beginPath(); poly.forEach((p, i) => { const [x, y] = XY(p[0], p[1] + off); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath(); c.fill(); c.stroke(); });
+  }
+
+  // 4. Zone des glaces : hachures sous la limite
+  if (ICE && laB < -35) {
+    const n = 120, pts = []; for (let k = 0; k <= n; k++) { const lo = loL + (loR - loL) * k / n; pts.push(XY(iceLat(lo), lo)); }
+    if (pts.some(p => p[1] < H)) {
+      const bad = col('--bad');
+      c.save(); c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.lineTo(W, H + 10); c.lineTo(0, H + 10); c.closePath(); c.clip();
+      c.fillStyle = theme === 'night' ? 'rgba(10,18,26,0.55)' : 'rgba(255,255,255,0.45)'; c.fillRect(0, 0, W, H);
+      c.strokeStyle = bad; c.globalAlpha = 0.35; c.lineWidth = 1; c.beginPath();
+      for (let x = -H; x < W; x += 10) { c.moveTo(x, H); c.lineTo(x + H, 0); } c.stroke(); c.restore();
+      c.strokeStyle = bad; c.lineWidth = 2; c.setLineDash([7, 4]); c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.stroke(); c.setLineDash([]);
+      const mid = pts[Math.round(n * 0.3)]; if (mid[1] > 20 && mid[1] < H - 10) place('Limite des glaces', mid[0], mid[1] + 8, '600 11px ' + fBody, bad);
     }
   }
-  const tgt = target(), r = results[selected];
-  if (r && r.ok && !$('#results').hidden) {
-    c.lineWidth = 3.5; c.lineJoin = 'round'; c.lineCap = 'round';
-    (r.view || r.legs).forEach(L => {
-      c.strokeStyle = col(L.twaAvg > 0 ? '--port' : '--stbd'); c.beginPath();
+
+  // 5. Flèches du vent, une seule couleur : la force se lit sur le fond
+  if (grid) {
+    const STEP = 34; c.strokeStyle = c.fillStyle = theme === 'night' ? 'rgba(228,236,241,0.78)' : 'rgba(14,34,51,0.62)'; c.lineWidth = 1.4; c.lineCap = 'round';
+    for (let y = STEP / 2; y < H; y += STEP) for (let x = STEP / 2; x < W; x += STEP) {
+      const [la, lo] = LL(x, y); if (!inGrid(la, lo) || isLand(la, lo)) continue;
+      const w = windGrid(la, lo, t); if (w.tws < 1) continue;
+      const a = ((w.twd + 180) % 360) * D2R, dx = Math.sin(a), dy = -Math.cos(a), L = Math.min(8 + w.tws * 0.5, 22), x1 = x + dx * L / 2, y1 = y + dy * L / 2;
+      c.beginPath(); c.moveTo(x - dx * L / 2, y - dy * L / 2); c.lineTo(x1, y1); c.stroke();
+      c.beginPath(); c.moveTo(x1, y1); c.lineTo(x1 - dx * 5 + dy * 3, y1 - dy * 5 - dx * 3); c.lineTo(x1 - dx * 5 - dy * 3, y1 - dy * 5 + dx * 3); c.closePath(); c.fill();
+    }
+  }
+
+  // Étiquettes du quadrillage, par-dessus le fond
+  c.textBaseline = 'alphabetic';
+  for (let la = Math.ceil(laB / gstep) * gstep; la <= laT; la += gstep) { const y = XY(la, 0)[1]; if (y > 14 && y < H - 18) label(fmtLat(la), 6, y - 4, '500 11px ' + fBody, col('--muted')); }
+  for (let lo = Math.ceil(loL / gstep) * gstep; lo <= loR; lo += gstep) { const x = XY(0, lo)[0]; if (x > 40 && x < W - 56) label(fmtLon(lo), x + 4, H - 6, '500 11px ' + fBody, col('--muted')); }
+
+  const tgt = target(), r = results[selected], showRoute = r && r.ok && !$('#results').hidden;
+  const [sx, sy] = XY(START.lat, START.lon); reserve(sx, sy, 12);
+  const startLabel = () => place(START === OUESSANT ? 'Ouessant' : 'Bateau', sx + 4, sy, '700 12px ' + fBody);
+  // 6. Calcul précédent
+  if (racing() && prevPlan && showRoute) {
+    c.strokeStyle = col('--muted'); c.lineWidth = 2; c.setLineDash([5, 5]); c.beginPath();
+    prevPlan.pts.forEach((p, i) => { const [x, y] = XY(p[1], p[2]); i ? c.lineTo(x, y) : c.moveTo(x, y); });
+    c.stroke(); c.setLineDash([]);
+  }
+  // 7. Route, colorée par bord, avec un liseré pour rester lisible sur le fond
+  if (showRoute) {
+    c.lineJoin = 'round'; c.lineCap = 'round';
+    const legs = r.view || r.legs;
+    legs.forEach(L => {
+      c.beginPath();
       L.steps.forEach((s, i) => {
         if (i === 0) { const [x, y] = XY(s.lat0, s.lon0); c.moveTo(x, y); }
         const e = s === r.steps[r.steps.length - 1] ? [(r.end || tgt).lat, (r.end || tgt).lon] : dest(s.lat0, s.lon0, s.hdg, s.bs * (s.t1 - s.t0));
         const [x, y] = XY(e[0], e[1]); c.lineTo(x, y);
       });
-      // Liseré sous le trait de couleur, pour qu'il reste lisible sur les flèches de vent.
-      const tint = c.strokeStyle; c.lineWidth = 7; c.strokeStyle = col('--bg'); c.stroke(); c.lineWidth = 3.5; c.strokeStyle = tint; c.stroke();
+      c.lineWidth = 7; c.strokeStyle = halo; c.stroke(); c.lineWidth = 3.5; c.strokeStyle = col(L.twaAvg > 0 ? '--port' : '--stbd'); c.stroke();
     });
-    c.font = '600 11px ' + col('--font-body'); c.textAlign = 'center'; c.textBaseline = 'middle';
-    (r.view || r.legs).forEach((L, i) => {
+    // Points de manœuvre : losanges
+    legs.forEach((L, i) => {
       if (!i) return; const s = L.steps[0], [x, y] = XY(s.lat0, s.lon0);
-      c.fillStyle = col('--surface'); c.strokeStyle = col('--fg'); c.lineWidth = 1.5;
-      c.beginPath(); c.arc(x, y, 8, 0, 7); c.fill(); c.stroke(); c.fillStyle = col('--fg'); c.fillText(String(i + 1), x, y + .5);
+      c.fillStyle = col('--surface'); c.strokeStyle = ink; c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(x, y - 6); c.lineTo(x + 6, y); c.lineTo(x, y + 6); c.lineTo(x - 6, y); c.closePath(); c.fill(); c.stroke();
     });
-    c.textAlign = 'left'; c.textBaseline = 'alphabetic';
-    const b = boatAt(r, t);
-    if (b) {
-      const [x, y] = XY(b.lat, b.lon), a = b.s.hdg * D2R;
-      c.save(); c.translate(x, y); c.rotate(a);
-      c.fillStyle = col('--fg'); c.strokeStyle = col('--surface'); c.lineWidth = 2;
-      c.beginPath(); c.moveTo(0, -12); c.lineTo(7, 9); c.lineTo(0, 5); c.lineTo(-7, 9); c.closePath(); c.fill(); c.stroke(); c.restore();
+    // Repères horaires le long de la route : toutes les 12 h, ou 6 h en zoomant
+    var ticks = [];
+    const every = pv.sc > 60 ? 6 : 12, d0 = atT(r.depT); d0.setMinutes(0, 0, 0); d0.setHours(d0.getHours() - d0.getHours() % every + every);
+    for (let tm = (d0 - grid.t0) / 3600e3; tm < r.arrT; tm += every) {
+      const b = boatAt(r, tm); if (!b) continue; const [x, y] = XY(b.lat, b.lon); if (x < -20 || x > W + 20 || y < -20 || y > H + 20) continue;
+      c.fillStyle = ink; c.beginPath(); c.arc(x, y, 2.6, 0, 7); c.fill();
+      ticks.push([x, y, atT(tm)]);
     }
   }
-  if (racing() && prevPlan && !$('#results').hidden) {
-    c.strokeStyle = col('--muted'); c.lineWidth = 2; c.setLineDash([5, 5]); c.beginPath();
-    prevPlan.pts.forEach((p, i) => { const [x, y] = XY(p[1], p[2]); i ? c.lineTo(x, y) : c.moveTo(x, y); });
-    c.stroke(); c.setLineDash([]);
-  }
-  if (r && r.ok && !$('#results').hidden) flagList.forEach((f, i) => {
-    const [x, y] = XY(f.lat, f.lon);
-    c.strokeStyle = col('--fg'); c.lineWidth = 2; c.beginPath(); c.moveTo(x, y); c.lineTo(x, y - 18); c.stroke();
-    c.fillStyle = col('--accent'); c.beginPath(); c.moveTo(x, y - 18); c.lineTo(x + 12, y - 14); c.lineTo(x, y - 10); c.closePath(); c.fill();
-    c.fillStyle = col('--fg'); c.font = '600 11px ' + col('--font-body'); c.fillText(String(i + 1), x + 4, y - 20);
-  });
-  c.fillStyle = col('--accent'); const [sx, sy] = XY(START.lat, START.lon); c.beginPath(); c.arc(sx, sy, 6, 0, 7); c.fill();
-  c.fillStyle = col('--fg'); c.font = '600 12px ' + col('--font-body'); c.fillText(START === OUESSANT ? 'Ouessant' : 'Bateau', sx + 9, sy + 4);
+  // 8. Bouées : posées dans le jeu (rouge, comme dans le jeu) et à poser (couleur d'accent)
+  const flag = (x, y, fill, txt) => {
+    c.strokeStyle = ink; c.lineWidth = 2; c.beginPath(); c.moveTo(x, y + 1); c.lineTo(x, y - 20); c.stroke();
+    c.fillStyle = fill; c.strokeStyle = halo; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 20); c.lineTo(x + 13, y - 15.5); c.lineTo(x, y - 11); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = ink; c.beginPath(); c.arc(x, y, 2.4, 0, 7); c.fill();
+  };
+  const posed = racing() && state.posed && state.posed.flags ? state.posed.flags.filter(f => f.ms > Date.now() - 3600e3) : [];
+  const near = (a, b) => Math.abs(a.lat - b.lat) < 0.02 && Math.abs(normLon(a.lon - b.lon)) < 0.02;
+  const flagsDrawn = [];
+  posed.forEach((f, i) => { const [x, y] = XY(f.lat, uw(f.lon)); flag(x, y, '#E0453A', ''); flagsDrawn.push([x, y, String(i + 1)]); });
+  if (showRoute) flagList.forEach((f, i) => { if (f.posed || posed.some(p => near(p, f))) return; const [x, y] = XY(f.lat, f.lon); flag(x, y, col('--accent'), ''); flagsDrawn.push([x, y, String(i + 1)]); });
+  // Étiquettes, dans l'ordre d'importance : bateau, numéros de bouées, heures sur la route
+  flagsDrawn.forEach(([x, y]) => taken.push({ x0: x - 3, y0: y - 21, x1: x + 14, y1: y + 3 }));
+  startLabel();
+  flagsDrawn.forEach(([x, y, n]) => { c.font = '700 11px ' + fBody; const w = c.measureText(n).width, box = { x0: x - w - 6, y0: y - 30, x1: x - 2, y1: y - 17 }; if (!hit(box)) { taken.push(box); label(n, x - w - 4, y - 19, '700 11px ' + fBody); } });
+  (typeof ticks !== 'undefined' ? ticks : []).forEach(([x, y, dt]) => place(dt.getHours() === 0 ? dayFmt.format(dt).replace(/\.$/, '') + ' 0 h' : dt.getHours() + ' h', x, y, (dt.getHours() === 0 ? '700 ' : '500 ') + '11px ' + fBody));
+  // 9. Porte ou cible
   const gt = goalGate();
   if (gt) {
     const [x1, y1] = XY(gt.a.lat, gt.a.lon), [x2, y2] = XY(gt.b.lat, gt.b.lon);
+    c.lineWidth = 6; c.strokeStyle = halo; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
     c.strokeStyle = col('--accent'); c.lineWidth = 3; c.setLineDash([8, 5]); c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); c.setLineDash([]);
-    c.fillStyle = col('--fg'); c.fillText('Porte', Math.max(Math.min(x1, x2), 0) + 6, y1 - 8);
-    if (r && r.ok && r.end && !$('#results').hidden) { const [x, y] = XY(r.end.lat, r.end.lon); c.strokeStyle = col('--fg'); c.lineWidth = 2; c.beginPath(); c.arc(x, y, 7, 0, 7); c.stroke(); }
+    label('Porte', Math.min(Math.max(Math.min(x1, x2), 0), W - 60) + 6, Math.min(y1, y2) - 8, '600 12px ' + fBody);
+    if (showRoute && r.end) { const [x, y] = XY(r.end.lat, r.end.lon); c.strokeStyle = ink; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 7, 0, 7); c.stroke(); }
   } else if (!isNaN(tgt.lat) && !isNaN(tgt.lon)) {
-    const [x, y] = XY(tgt.lat, tgt.lon); c.strokeStyle = col('--fg'); c.lineWidth = 2; c.beginPath(); c.arc(x, y, 7, 0, 7); c.stroke(); c.fillText('Cible', x + 10, y + 4);
+    const [x, y] = XY(tgt.lat, tgt.lon); c.strokeStyle = ink; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 7, 0, 7); c.moveTo(x - 11, y); c.lineTo(x + 11, y); c.moveTo(x, y - 11); c.lineTo(x, y + 11); c.stroke();
+    label('Cible', x + 11, y - 6, '600 12px ' + fBody);
   }
+  // 10. Bateau : position saisie (orientée selon le premier cap), et position prévue à l'heure du curseur
+  const boat = (x, y, hdg, fill, size) => {
+    c.save(); c.translate(x, y); c.rotate(hdg * D2R); const s = size / 12;
+    c.fillStyle = fill; c.strokeStyle = halo; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(0, -13 * s); c.quadraticCurveTo(7 * s, -2 * s, 5.5 * s, 10 * s); c.lineTo(-5.5 * s, 10 * s); c.quadraticCurveTo(-7 * s, -2 * s, 0, -13 * s); c.closePath(); c.stroke(); c.fill(); c.restore();
+  };
+  if (showRoute && START !== OUESSANT) boat(sx, sy, r.steps[0].hdg, col('--accent'), 10);
+  else { c.fillStyle = col('--accent'); c.strokeStyle = halo; c.lineWidth = 2; c.beginPath(); c.arc(sx, sy, 6, 0, 7); c.stroke(); c.fill(); }
+  if (showRoute) { const b = boatAt(r, t); if (b && Math.abs(t - r.depT) > 0.4) { const [x, y] = XY(b.lat, b.lon); boat(x, y, b.s.hdg, ink, 11); } }
+  // 11. Point touché
   if (tapped) {
-    const [x, y] = XY(tapped.lat, tapped.lon); c.strokeStyle = col('--fg'); c.lineWidth = 2;
-    c.beginPath(); c.arc(x, y, 11, 0, 7); c.moveTo(x - 17, y); c.lineTo(x - 5, y); c.moveTo(x + 5, y); c.lineTo(x + 17, y); c.moveTo(x, y - 17); c.lineTo(x, y - 5); c.moveTo(x, y + 5); c.lineTo(x, y + 17); c.stroke();
+    const [x, y] = XY(tapped.lat, tapped.lon); c.lineWidth = 4; c.strokeStyle = halo;
+    const cross = () => { c.beginPath(); c.arc(x, y, 11, 0, 7); c.moveTo(x - 17, y); c.lineTo(x - 5, y); c.moveTo(x + 5, y); c.lineTo(x + 17, y); c.moveTo(x, y - 17); c.lineTo(x, y - 5); c.moveTo(x, y + 5); c.lineTo(x, y + 17); c.stroke(); };
+    cross(); c.lineWidth = 2; c.strokeStyle = ink; cross();
+  }
+  // 12. Échelle en milles
+  const pxNm = pv.sc / 60, nice = [5, 10, 20, 50, 100, 200, 500, 1000].find(v => v * pxNm >= 70) || 1000, bw = nice * pxNm, bx = 12, by = H - 26;
+  if (bw < W * 0.6) {
+    c.lineWidth = 5; c.strokeStyle = halo; c.beginPath(); c.moveTo(bx, by - 5); c.lineTo(bx, by); c.lineTo(bx + bw, by); c.lineTo(bx + bw, by - 5); c.stroke();
+    c.lineWidth = 2; c.strokeStyle = ink; c.stroke();
+    label(nice + ' Mn', bx + bw / 2, by - 8, '600 11px ' + fBody, ink, 'center');
   }
 }
 (function mapEvents() {
@@ -1517,7 +1786,7 @@ function drawMap() {
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '20';
+const VERSION = '24';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -1700,8 +1969,8 @@ function updateDash() {
 }
 
 $('#ver').textContent = 'version ' + VERSION;
-$('#about').textContent = 'Version ' + VERSION + '. Vent : modèle GFS de la NOAA, distribué par Open-Meteo, limité à environ six téléchargements par jour. Polaire relevée dans le jeu, de 2 à 30 nds de vent. Tes réglages et la dernière route restent enregistrés sur cet appareil.';
-fillSettings(); syncCustom(); showCal(); updateChrono(); renderPosed(); updateDash(); updateTime();
+$('#about').textContent = 'Version ' + VERSION + '. Vent : modèle GFS de la NOAA, distribué par Open-Meteo, limité à environ six téléchargements par jour. Côtes et limite des glaces approchées : vérifie toujours la route avec le jeu. Polaire relevée dans le jeu, de 2 à 30 nds de vent. Tes réglages et la dernière route restent enregistrés sur cet appareil.';
+fillSettings(); showPen(); syncCustom(); showCal(); updateChrono(); renderPosed(); updateDash(); updateTime();
 showTab(location.hash.slice(1) || 'course', false);
 restoreSession();
 </script>
