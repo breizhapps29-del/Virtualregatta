@@ -89,6 +89,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .best{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:8px}
 .best .big{font-family:var(--font-display);font-size:1.9rem;font-weight:700;line-height:1.1}
 .best .keep{font-family:var(--font-display);font-size:1.35rem;font-weight:700;color:var(--stbd)}.best .keep.change{color:var(--warn)}
+.best .k0{font-size:.85rem;color:var(--muted)}
 .best .sub{color:var(--muted);font-size:.92rem}
 .facts{display:grid;grid-template-columns:minmax(96px,auto) minmax(0,1fr);gap:6px 14px;margin:4px 0 0;font-size:.95rem}
 .facts dt{color:var(--muted)}
@@ -108,6 +109,19 @@ canvas{display:block;width:100%}
 .readout{font-size:.95rem;line-height:1.4;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:6px;white-space:pre-line;min-height:3.2em}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.85rem;color:var(--muted)}
 .sw{display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.k small.kn{display:block;font-family:var(--font-body);font-size:.85rem;color:var(--muted);margin-top:2px}
+.logsvg{width:100%;height:auto;display:block}
+.logsvg line.g{stroke:var(--line);stroke-width:1}
+.logsvg line.z{stroke:var(--muted);stroke-width:1.2}
+.logsvg text{font-family:var(--font-body);font-size:10px;fill:var(--muted)}
+.logsvg path{fill:none;stroke-width:2.2;stroke-linejoin:round}
+.logsvg path.rec{stroke:var(--accent)}
+.logsvg path.avg{stroke:var(--muted);stroke-dasharray:5 4}
+.logsvg circle.rec{fill:var(--accent)}
+.loglegend{display:flex;gap:16px;font-size:.85rem;margin:6px 0 10px}
+.loglegend span::before{content:"";display:inline-block;width:16px;height:3px;margin-right:6px;vertical-align:middle}
+.loglegend .rec::before{background:var(--accent)}
+.loglegend .avg::before{background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 8px)}
 .sw.dash{background:repeating-linear-gradient(90deg,var(--c) 0 5px,transparent 5px 8px)}
 .fl{display:inline-block;width:10px;height:8px;margin-right:6px;vertical-align:middle;clip-path:polygon(0 0,100% 50%,0 100%)}
 .wscale{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:center;width:100%}
@@ -255,6 +269,9 @@ details > * + *{margin-top:12px}
             <option value="48.45|-5.15">Arrivée à Ouessant</option>
             <option value="">Un autre point</option>
           </select></label>
+        <label class="f"><span>Puis, sans s'arrêter (facultatif)</span>
+          <select id="next"><option value="">Rien après</option></select></label>
+        <p class="hint" id="nextHint" hidden></p>
         <div class="two custom">
           <label class="f"><span>Latitude</span><input id="tlat" inputmode="text" autocomplete="off"></label>
           <label class="f"><span>Longitude (O = négatif)</span><input id="tlon" inputmode="text" autocomplete="off"></label>
@@ -269,6 +286,8 @@ details > * + *{margin-top:12px}
       <h2>Route calculée</h2>
       <div class="best" id="best"></div>
       <div class="best" id="cmp" hidden></div>
+      <div class="best" id="ecCard" hidden></div>
+      <button type="button" id="btnEc">Comparer avec le modèle européen</button>
       <div class="two">
         <button type="button" data-tab="route">Voir les bouées</button>
         <button type="button" data-tab="carte">Voir la carte</button>
@@ -280,6 +299,15 @@ details > * + *{margin-top:12px}
         <div class="reft" id="refTable"></div>
         <p class="hint">Temps depuis Ouessant. Record : Sodebo Ultim 3, en 40 j 10 h 45. Moyenne : les quatre records précédents, de 2005 à 2017. L'avance ou le retard affichés en haut supposent une progression régulière entre deux repères : c'est un ordre de grandeur.</p>
       </div>
+    <div class="block race">
+      <h2>Journal de course</h2>
+      <div class="panel">
+        <div id="logChart"></div>
+        <div id="logList"></div>
+        <p class="hint">Chaque position saisie s'ajoute au journal (une par tranche de 20 minutes). Le graphique montre ton avance au-dessus de zéro, ton retard en dessous.</p>
+        <button type="button" id="logClear">Effacer le journal</button>
+      </div>
+    </div>
     </div>
   </section>
 
@@ -308,6 +336,8 @@ details > * + *{margin-top:12px}
       <span><i class="fl" style="background:var(--accent)"></i>bouées à poser</span>
       <span><i class="sw dash" style="--c:var(--muted)"></i>calcul précédent</span>
       <span><i class="sw dash" style="--c:var(--bad)"></i>limite des glaces</span>
+      <span><i class="sw dash" style="--c:#9b6ae0"></i>route du modèle européen</span>
+      <span><i class="sw dash" style="--c:var(--muted)"></i>trace parcourue (journal)</span>
     </div>
     <div class="block">
       <h2>Vent</h2>
@@ -569,6 +599,13 @@ function gateGeom(gate) {
       if (Math.abs(den) < 1e-12) return null;
       const s = ((ax - px) * dy - (ay - py) * dx) / den, u = ((ax - px) * ry - (ay - py) * rx) / den;
       return s > 1e-9 && s <= 1 && u >= 0 && u <= 1 ? s : null;
+    },
+    // Vrai si le trajet coupe le prolongement de la porte, à côté d'elle : interdit quand la porte est un passage obligé.
+    wall(la1, lo1, la2, lo2) {
+      const px = lo1 * k, py = la1, rx = lo2 * k - px, ry = la2 - py, den = rx * dy - ry * dx;
+      if (Math.abs(den) < 1e-12) return false;
+      const s = ((ax - px) * dy - (ay - py) * dx) / den, u = ((ax - px) * ry - (ay - py) * rx) / den;
+      return s > 1e-9 && s <= 1 && (u < 0 || u > 1);
     }
   };
 }
@@ -598,6 +635,8 @@ const recover = (E, tws, h) => Math.min(1, E + h * 60 / lerpTab(GAME.rec, tws) /
 // Routage par isochrones. t = heures depuis la référence du vent. La destination est un point (cfg.tgt) ou une porte (cfg.gate).
 function computeRoute(cfg, samples, depT) {
   const { start, tgt, coef, penalty } = cfg, minLeg = cfg.minLeg || 0, G = cfg.gate ? gateGeom(cfg.gate) : null, sailPen = (cfg.sailPen || 0) / 60;
+  // Portes de passage obligé avant la destination : on ne peut pas couper leur ligne à côté de la porte.
+  const VIA = (cfg.via || []).map(gateGeom), walled = (a, b, c2, d) => VIA.some(v => v.wall(a, b, c2, d));
   const SEC = 2.5, maxSteps = Math.ceil(360 / cfg.dt) + 48;
   let front = [{ lat: start.lat, lon: start.lon, t: depT, parent: null, tack: 0, tackT: -1e9, sail: null, en: cfg.E0 == null ? 1 : cfg.E0, step: null }];
   const headsFor = st => { const h = []; for (let a = 0; a < 360; a += st) h.push(a); return h; };
@@ -628,7 +667,7 @@ function computeRoute(cfg, samples, depT) {
         const eff = Math.max(dt - pen, 0.05), dist = bs * eff, en = recover(man.E, w.tws, dt);
         const step = { hdg: h, twa, twd: w.twd, tws: w.tws, bs, t0: p.t, lat0: p.lat, lon0: p.lon, en: p.en };
         if (!G && h === bTg && dist >= dTg) {
-          if (pathClear(p.lat, p.lon, tgt.lat, tgt.lon)) {
+          if (pathClear(p.lat, p.lon, tgt.lat, tgt.lon) && !walled(p.lat, p.lon, tgt.lat, tgt.lon)) {
             const tArr = p.t + pen + dTg / bs;
             if (!arrival || tArr < arrival.t) arrival = { lat: tgt.lat, lon: tgt.lon, t: tArr, parent: p, tack, sail, en, step: { ...step, t1: tArr } };
           }
@@ -639,7 +678,7 @@ function computeRoute(cfg, samples, depT) {
           const s = G.cross(p.lat, p.lon, la, lo);
           if (s !== null) {
             const cl = p.lat + (la - p.lat) * s, co = p.lon + (lo - p.lon) * s;
-            if (pathClear(p.lat, p.lon, cl, co)) {
+            if (pathClear(p.lat, p.lon, cl, co) && !walled(p.lat, p.lon, cl, co)) {
               const tArr = p.t + pen + s * eff;
               if (!arrival || tArr < arrival.t) arrival = { lat: cl, lon: co, t: tArr, parent: p, tack, sail, en, step: { ...step, t1: tArr } };
             }
@@ -651,7 +690,7 @@ function computeRoute(cfg, samples, depT) {
         const key = Math.floor(bearing(start.lat, start.lon, la, lo) / SEC);
         const ex = cand.get(key);
         if (ex && ex.rem <= rem) continue;
-        if (isLand(la, lo) || !pathClear(p.lat, p.lon, la, lo)) continue;
+        if (isLand(la, lo) || !pathClear(p.lat, p.lon, la, lo) || walled(p.lat, p.lon, la, lo)) continue;
         cand.set(key, { lat: la, lon: lo, t: p.t + dt, parent: p, tack, tackT, sail, en, rem, step: { ...step, t1: p.t + dt } });
       }
     }
@@ -733,11 +772,15 @@ const API = 'https://api.open-meteo.com/v1/gfs';
 const GRID_STEP = 2, CHUNK = 100;
 let grid = null, nests = []; // grille large, puis grilles plus fines devant le bateau (la plus fine en premier)
 
+// Grille large sur tout le trajet : pas de 2°, ou 3° et 4° pour les très longs trajets, pour garder des points aux grilles fines.
 function gridBox() {
   const P = [START, ...goalPts()], lats = P.map(p => p.lat), lons = P.map(p => p.lon);
-  const la0 = Math.floor((Math.min(...lats) - 4) / GRID_STEP) * GRID_STEP, la1 = Math.ceil((Math.max(...lats) + 2) / GRID_STEP) * GRID_STEP;
-  const lo0 = Math.floor((Math.min(...lons) - 8) / GRID_STEP) * GRID_STEP, lo1 = Math.ceil((Math.max(...lons) + 4) / GRID_STEP) * GRID_STEP;
-  return { lat0: Math.max(la0, -70), lon0: lo0, nLat: Math.round((Math.min(la1, 70) - Math.max(la0, -70)) / GRID_STEP) + 1, nLon: Math.round((lo1 - lo0) / GRID_STEP) + 1, d: GRID_STEP };
+  for (const S of [GRID_STEP, 3, 4]) {
+    const la0 = Math.max(Math.floor((Math.min(...lats) - 4) / S) * S, -72), la1 = Math.min(Math.ceil((Math.max(...lats) + 2) / S) * S, 72);
+    const lo0 = Math.floor((Math.min(...lons) - 8) / S) * S, lo1 = Math.ceil((Math.max(...lons) + 4) / S) * S;
+    const b = { lat0: la0, lon0: lo0, nLat: Math.round((la1 - la0) / S) + 1, nLon: Math.round((lo1 - lo0) / S) + 1, d: S };
+    if (b.nLat * b.nLon <= 800 || S === 4) return b;
+  }
 }
 // Série horaire d'une variable : le nom peut porter le suffixe du modèle quand on en demande un précis.
 const hv = (l, name) => l.hourly[name] || l.hourly[Object.keys(l.hourly).find(k => k.startsWith(name))];
@@ -814,7 +857,7 @@ async function fetchPoints(pts, days, opt, onProg) {
     const part = pts.slice(i, i + CHUNK);
     let res, tries = 0;
     for (;;) {
-      const url = API + '?latitude=' + part.map(p => p[0]).join(',') + '&longitude=' + part.map(p => +normLon(p[1]).toFixed(4)).join(',') +
+      const url = (opt.api || API) + '?latitude=' + part.map(p => p[0]).join(',') + '&longitude=' + part.map(p => +normLon(p[1]).toFixed(4)).join(',') +
         '&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=kn&forecast_days=' + Math.min(days, opt.maxDays) + '&timezone=GMT&cell_selection=nearest' + (opt.model ? '&models=' + opt.model : '');
       await throttle(part.length, sec => onProg(i, sec));
       res = await fetch(url);
@@ -880,7 +923,7 @@ async function fetchWind(tgt, onProgress) {
 /* ---------- Interface ---------- */
 const $ = s => document.querySelector(s);
 const STORE_KEY = 'jv-routage-auto-v5';
-const DEFAULT_STATE = { preset: '16.5|-27', tlat: '16.5', tlon: '-27', coef: '1.00', pen: '8', dt: '2', cTws: '', cTwa: '', cBs: '', mode: 'start', slat: '', slon: '', simple: true, minleg: '4', nflags: '6', fh: '24', cal: [], sailPen: '0', penMode: 'game', penSpeed: '50', energy: '100', ice: '', raceStart: '2026-11-11T22:29', posed: null, posAt: 0, splits: {} };
+const DEFAULT_STATE = { preset: '16.5|-27', tlat: '16.5', tlon: '-27', coef: '1.00', pen: '8', dt: '2', cTws: '', cTwa: '', cBs: '', mode: 'start', slat: '', slon: '', simple: true, minleg: '4', nflags: '6', fh: '24', cal: [], log: [], next: '', sailPen: '0', penMode: 'game', penSpeed: '50', energy: '100', ice: '', raceStart: '2026-11-11T22:29', posed: null, posAt: 0, splits: {} };
 const OUESSANT = { lat: 48.45, lon: -5.15 };
 let START = OUESSANT;
 let state = loadState(), results = [], selected = 0, tapped = null;
@@ -917,23 +960,31 @@ function uw(lon) {
   while (lon > ref + 300) lon -= 360;
   return lon;
 }
-function goalGate() {
-  const m = /^gate:(.+)$/.exec(state.preset || ''); if (!m) return null;
+function parseGate(str) {
+  const m = /^gate:(.+)$/.exec(str || ''); if (!m) return null;
   const v = m[1].split('|').map(Number); if (v.length !== 4 || v.some(isNaN)) return null;
   return { a: { lat: v[0], lon: uw(v[1]) }, b: { lat: v[2], lon: uw(v[3]) } };
 }
+// Avec une porte suivante, la première porte devient un passage obligé et la route vise la suivante.
+function viaGate() { const a = parseGate(state.preset); return a && parseGate(state.next) ? a : null; }
+function goalGate() { return viaGate() ? parseGate(state.next) : parseGate(state.preset); }
 function target() {
   const g = goalGate();
   return g ? { lat: (g.a.lat + g.b.lat) / 2, lon: (g.a.lon + g.b.lon) / 2 } : { lat: parseCoord(state.tlat), lon: uw(parseCoord(state.tlon)) };
 }
-const goalPts = () => { const g = goalGate(); return g ? [g.a, g.b] : [target()]; };
+// Extrémités navigables d'une porte (hors terre et zone des glaces) : c'est ce qui compte pour la zone de vent à charger.
+function gateEnds(g) {
+  const P = []; for (let i = 0; i <= 40; i++) { const f = i / 40, p = { lat: g.a.lat + (g.b.lat - g.a.lat) * f, lon: g.a.lon + (g.b.lon - g.a.lon) * f }; if (!isLand(p.lat, p.lon)) P.push(p); }
+  return P.length ? [P[0], P[P.length - 1]] : [g.a, g.b];
+}
+const goalPts = () => { const g = goalGate(), v = viaGate(); return [...(g ? gateEnds(g) : [target()]), ...(v ? gateEnds(v) : [])]; };
 function setResultsVisible(v) {
   $('#results').hidden = !v; $('#summary').hidden = !v; $('#routeEmpty').hidden = v;
   if (typeof updateDash === 'function') updateDash();
 }
 function setStatus(m, err) { const el = $('#status'); el.textContent = m; el.classList.toggle('err', !!err); }
 
-const FIELDS = ['energy', 'penMode', 'penSpeed', 'sailPen', 'ice', 'coef', 'pen', 'dt', 'tlat', 'tlon', 'cTws', 'cTwa', 'cBs', 'slat', 'slon', 'minleg', 'nflags', 'fh', 'raceStart'];
+const FIELDS = ['next', 'energy', 'penMode', 'penSpeed', 'sailPen', 'ice', 'coef', 'pen', 'dt', 'tlat', 'tlon', 'cTws', 'cTwa', 'cBs', 'slat', 'slon', 'minleg', 'nflags', 'fh', 'raceStart'];
 const racing = () => state.mode === 'race';
 function updateStart() {
   const la = parseCoord(state.slat), lo = parseCoord(state.slon);
@@ -956,7 +1007,7 @@ function applyIce() {
   if (el) el.textContent = pts.length + ' points lus.' + (bad.length ? ' Ligne' + (bad.length > 1 ? 's' : '') + ' illisible' + (bad.length > 1 ? 's' : '') + ' ignorée' + (bad.length > 1 ? 's' : '') + ' : ' + bad.join(', ') + '.' : '');
 }
 $('#mode').addEventListener('change', () => { readSettings(); results = []; setResultsVisible(false); dropRoute(); pv = null; updateDash(); drawMap(); });
-['slat', 'slon'].forEach(id => $('#' + id).addEventListener('input', () => { state.posAt = Date.now(); readSettings(); updateDash(); drawMap(); }));
+['slat', 'slon'].forEach(id => $('#' + id).addEventListener('input', () => { state.posAt = Date.now(); readSettings(); updateDash(); logPos(); drawMap(); }));
 // Lit une position complète : format du jeu (48°N 31'46" - 005°W 10'18"), « 43 25 N 14 54 W », ou décimal « 43.4 -14.9 ».
 function parsePos(str) {
   const s = String(str).trim().toUpperCase(); if (!s) return null;
@@ -983,7 +1034,7 @@ $('#spos').addEventListener('input', () => {
   if (!p) { msg.classList.add('err'); msg.textContent = 'Je ne comprends pas encore cette position. Exemple : 48°N 31\'46" - 005°W 10\'18"'; return; }
   msg.classList.remove('err');
   msg.textContent = 'Compris : ' + fmtDMS(p.lat, 'N', 'S') + ', ' + fmtDMS(p.lon, 'E', 'O') + (isLand(p.lat, p.lon) ? ' — ce point est sur terre, vérifie les lettres N/S et E/W.' : '');
-  $('#slat').value = p.lat.toFixed(4); $('#slon').value = p.lon.toFixed(4); state.posAt = Date.now(); readSettings(); pv = null; updateDash(); drawMap();
+  $('#slat').value = p.lat.toFixed(4); $('#slon').value = p.lon.toFixed(4); state.posAt = Date.now(); readSettings(); pv = null; updateDash(); logPos(); drawMap();
 });
 
 /* ---------- Chrono de la tentative ---------- */
@@ -1029,7 +1080,54 @@ async function idbGet(key) {
   } catch (e) { return null; }
 }
 const saveRoute = () => idbSet('route', { t0: grid.t0, results, selected, at: Date.now() });
-const dropRoute = () => idbSet('route', null);
+const dropRoute = () => { idbSet('route', null); ecRoute = null; };
+/* ---------- Deuxième avis : modèle européen ECMWF ---------- */
+// Le jeu utilise le GFS ; le modèle européen sert seulement à juger si la prévision est fiable.
+let ecRoute = null, ecWind = null;
+const API_EC = 'https://api.open-meteo.com/v1/ecmwf';
+function ecSampler(w) {
+  const off = (grid.t0 - w.g.t0) / 3600e3;
+  return (lat, lon, t) => { const tt = t + off; for (const n of w.nests) if (tt <= n.nT - 1 && inBox(n, lat, lon)) return sampleGrid(n, lat, lon, tt); return sampleGrid(w.g, lat, lon, tt); };
+}
+async function compareEc() {
+  const r = results[selected], card = $('#ecCard'), btn = $('#btnEc');
+  if (!r || !r.ok || !grid) return;
+  const cfg = makeCfg(); if (!cfg) return;
+  btn.disabled = true; card.hidden = false; card.textContent = 'Téléchargement du modèle européen…';
+  try {
+    const box = gridBox(), aim = viaGate() ? gateEnds(viaGate()) : goalGate() ? gateEnds(goalGate()) : [target(), target()];
+    const b1 = nestBox({ lat: (aim[0].lat + aim[1].lat) / 2, lon: (aim[0].lon + aim[1].lon) / 2 }, box, 1, 1500, 520);
+    const opt = { api: API_EC, model: null, maxDays: 10, settled: false }, plan = [{ box, days: 10 }].concat(b1 ? [{ box: b1, days: 5 }] : []);
+    const total = plan.reduce((s, p) => s + boxCount(p.box), 0); let done = 0; const gs = [];
+    for (const p of plan) { const pts = boxPoints(p.box); gs.push(buildGrid(p.box, await fetchPoints(pts, p.days, opt, (a, sec) => { card.textContent = sec ? 'Pause de ' + sec + ' s (limite du service météo)…' : 'Téléchargement du modèle européen… ' + (done + a) + ' / ' + total + ' points'; }))); done += pts.length; }
+    ecWind = { g: gs[0], nests: gs.slice(1) };
+    card.textContent = 'Calcul de la route avec le modèle européen…'; await new Promise(res => setTimeout(res, 20));
+    ecRoute = computeRoute(cfg, ecSampler(ecWind), r.depT);
+    renderEc(); drawMap();
+  } catch (e) { card.textContent = 'Le modèle européen n\'a pas pu être chargé : ' + (e && e.message ? e.message : e); }
+  finally { btn.disabled = false; }
+}
+function renderEc() {
+  const r = results[selected], card = $('#ecCard'); card.textContent = '';
+  if (!ecRoute || !r || !r.ok) { card.hidden = true; return; }
+  card.hidden = false;
+  const mk = (cls, txt) => { const d = document.createElement('div'); d.className = cls; d.textContent = txt; return d; };
+  card.append(mk('k0', 'Avec le modèle européen'));
+  if (!ecRoute.ok) { card.append(mk('sub', 'Aucune route trouvée avec ce modèle.')); return; }
+  // Écart entre les deux routes, heure par heure, sur les 24 et 72 premières heures.
+  let d24 = 0, d72 = 0, split = null;
+  for (let h = 1; h <= 72; h++) {
+    const a = boatAt(r, r.depT + h), b = boatAt(ecRoute, r.depT + h); if (!a || !b) break;
+    const d = hav(a.lat, a.lon, b.lat, b.lon); if (h <= 24) d24 = Math.max(d24, d); d72 = Math.max(d72, d);
+    if (split === null && d > 30) split = r.depT + h;
+  }
+  const gap = ecRoute.arrT - r.arrT, sure = d24 < 30 && Math.abs(gap) < 6;
+  card.append(mk('keep' + (sure ? '' : ' change'), sure ? 'Prévision fiable' : 'Prévision incertaine'));
+  card.append(mk('sub', 'Arrivée ' + clockFmt.format(atT(ecRoute.arrT)) + ', ' + (Math.abs(gap) < 0.5 ? 'à la même heure' : fmtDur(Math.abs(gap)) + (gap > 0 ? ' plus tard' : ' plus tôt')) + ' qu\'avec le GFS. ' +
+    (split === null ? 'Les deux routes restent à moins de 30 Mn l\'une de l\'autre pendant 3 jours.' : 'Les deux routes s\'écartent de plus de 30 Mn à partir du ' + clockFmt.format(atT(split)) + ' (jusqu\'à ' + Math.round(d72) + ' Mn).') +
+    (sure ? ' Tes bouées des prochaines 24 heures sont solides.' : ' Pose surtout les bouées des premières heures, et vérifie avec le Routage Express du jeu, qui utilise le GFS.')));
+}
+$('#btnEc').addEventListener('click', compareEc);
 async function restoreSession() {
   const w = await idbGet('wind');
   if (!w || !w.grid || grid) return;                                   // rien d'enregistré, ou un vent vient d'être chargé
@@ -1115,17 +1213,27 @@ $('#btnTapStart').addEventListener('click', () => {
   if (!tapped) { $('#readout').textContent = 'Touche d\'abord la mer sur la carte, à la position du bateau.'; return; }
   $('#slat').value = tapped.lat.toFixed(4); $('#slon').value = tapped.lon.toFixed(4);
   $('#spos').value = fmtDM(tapped.lat, 'N', 'S') + ', ' + fmtDM(tapped.lon, 'E', 'O'); $('#sposMsg').textContent = '';
-  state.posAt = Date.now(); readSettings(); pv = null; updateDash(); showTab('course'); setStatus('Position du bateau enregistrée. Mets à jour la route.');
+  state.posAt = Date.now(); readSettings(); pv = null; updateDash(); logPos(); showTab('course'); setStatus('Position du bateau enregistrée. Mets à jour la route.');
 });
 
+// La liste « Puis » reprend les portes de la liste des destinations.
+document.querySelectorAll('#preset option').forEach(o => { if (o.value.startsWith('gate:')) $('#next').append(new Option(o.textContent, o.value)); });
+function syncNext() {
+  const h = $('#nextHint'), first = parseGate(state.preset);
+  if (!state.next) { h.hidden = true; return; }
+  h.hidden = false;
+  h.textContent = !first ? 'La porte suivante ne sert qu\'après une porte : choisis une porte dans « Je vais vers ».'
+    : 'La route passe par la première porte au meilleur endroit pour rejoindre la suivante. Au-delà de 10 jours, le vent n\'est plus prévu : l\'arrivée à la porte suivante est indicative.';
+}
+$('#next').addEventListener('change', () => { readSettings(); syncNext(); results = []; setResultsVisible(false); dropRoute(); pv = null; drawMap(); });
 function syncCustom() { document.querySelectorAll('.custom').forEach(el => { el.hidden = $('#preset').value !== ''; }); }
 $('#preset').addEventListener('change', e => {
   const v = e.target.value;
   if (v && !v.startsWith('gate:')) { const [la, lo] = v.split('|'); $('#tlat').value = la; $('#tlon').value = lo; }
-  readSettings(); syncCustom(); pv = null; drawMap();
+  readSettings(); syncCustom(); syncNext(); pv = null; drawMap();
 });
 ['tlat', 'tlon'].forEach(id => $('#' + id).addEventListener('input', () => { $('#preset').value = ''; readSettings(); drawMap(); }));
-$('#energy').addEventListener('change', readSettings);
+$('#energy').addEventListener('change', () => { readSettings(); if (state.posAt && Date.now() - state.posAt < 20 * 60e3) logPos(); });
 ['coef', 'pen', 'dt', 'minleg', 'sailPen', 'penSpeed'].forEach(id => $('#' + id).addEventListener('change', () => { readSettings(); showPen(); }));
 $('#penMode').addEventListener('change', () => { readSettings(); showPen(); });
 // Barème du jeu : durée de la manœuvre en minutes, 10 nds de vent ou moins, puis 30 nds ou plus ; entre les deux, l'outil interpole.
@@ -1169,7 +1277,9 @@ async function loadWind() {
   if (isNaN(tgt.lat) || isNaN(tgt.lon)) { say('Renseigne d\'abord une destination valide.', true); return false; }
   btn.disabled = true; say('Téléchargement du vent…');
   try {
-    const got = await fetchWind(tgt, (a, b, sec) => say(sec ? 'Pause de ' + sec + ' s, le service météo limite le nombre de points par minute. ' + a + ' / ' + b + ' points reçus.' : 'Téléchargement du vent… ' + a + ' / ' + b + ' points'));
+    // Les grilles fines visent la prochaine porte à franchir.
+    const aim = viaGate() ? gateEnds(viaGate()) : goalGate() ? gateEnds(goalGate()) : null;
+    const got = await fetchWind(aim ? { lat: (aim[0].lat + aim[1].lat) / 2, lon: (aim[0].lon + aim[1].lon) / 2 } : tgt, (a, b, sec) => say(sec ? 'Pause de ' + sec + ' s, le service météo limite le nombre de points par minute. ' + a + ' / ' + b + ' points reçus.' : 'Téléchargement du vent… ' + a + ' / ' + b + ' points'));
     grid = got.g; nests = got.nests; windLoadedAt = Date.now();
     gfsRun = got.model ? await fetchRun() : null;
     idbSet('wind', { grid, nests, at: windLoadedAt, run: gfsRun }); dropRoute();
@@ -1223,7 +1333,7 @@ function makeCfg() {
   if (isNaN(coef) || coef <= 0 || isNaN(penalty) || penalty < 0) { setStatus('Vérifie le coefficient et la perte par manœuvre.', true); return null; }
   const ml = num(state.minleg);
   const sp = num(state.sailPen);
-  return { start: START, tgt, gate: goalGate(), dt, coef, penalty, minLeg: isNaN(ml) || ml < 0 ? 0 : ml, sailPen: isNaN(sp) || sp < 0 ? 0 : sp, game: state.penMode === 'manual' ? null : { keep: keepSpeed() }, E0: energyNow() };
+  return { start: START, tgt, gate: goalGate(), via: viaGate() ? [viaGate()] : [], dt, coef, penalty, minLeg: isNaN(ml) || ml < 0 ? 0 : ml, sailPen: isNaN(sp) || sp < 0 ? 0 : sp, game: state.penMode === 'manual' ? null : { keep: keepSpeed() }, E0: energyNow() };
 }
 async function runList(cfg, times, label) {
   for (let i = 0; i < times.length; i++) {
@@ -1371,6 +1481,11 @@ function renderFlags() {
     const row = document.createElement('div'); row.className = 'k';
     const a = document.createElement('span'); a.textContent = (i + 1) + ' · ' + dayFmt.format(atT(f.t)).replace(/\.$/, '') + ' ' + hourFmt.format(atT(f.t));
     const b = document.createElement('span'); b.style.fontFamily = 'var(--font-mono)'; b.textContent = fmtDM(f.lat, 'N', 'S') + ', ' + fmtDM(f.lon, 'E', 'O') + (f.posed ? ' (déjà posée)' : res.last && i === res.flags.length - 1 ? (goalGate() ? ' (porte)' : ' (destination)') : '');
+    // Cap et distance depuis la bouée précédente (depuis le bateau pour la première) : plus simple à placer sur la carte du jeu.
+    const from = i ? res.flags[i - 1] : START, d = hav(from.lat, from.lon, f.lat, f.lon);
+    const sub = document.createElement('small'); sub.className = 'kn';
+    sub.textContent = 'cap ' + String(Math.round(bearing(from.lat, from.lon, f.lat, f.lon)) % 360).padStart(3, '0') + '°, ' + (d < 10 ? d.toFixed(1).replace('.', ',') : Math.round(d)) + ' Mn depuis ' + (i ? 'la bouée ' + i : 'le bateau');
+    b.append(sub);
     row.append(a, b); box.append(row);
   });
   say('Écart maximal avec la route calculée : ' + Math.round(res.dev) + ' Mn.' + (res.dev > 25 ? ' C\'est beaucoup : ajoute des bouées ou couvre moins d\'heures.' : '') + ' Les heures sont indicatives : le bateau tourne en arrivant à la bouée.');
@@ -1414,9 +1529,23 @@ function bestIndex() {
   if (bi < 0) results.forEach((r, i) => { if (r.ok && (bi < 0 || r.dur < results[bi].dur - 1e-6)) bi = i; });
   return bi;
 }
+// Heure et lieu du passage de la première porte, quand la route vise une porte suivante.
+function viaPassage(r) {
+  const v = viaGate(); if (!v || !r.ok) return null;
+  const G = gateGeom(v), S = r.steps;
+  for (let i = 0; i < S.length; i++) {
+    const s = S[i], e = i + 1 < S.length ? [S[i + 1].lat0, S[i + 1].lon0] : [(r.end || target()).lat, (r.end || target()).lon];
+    const f = G.cross(s.lat0, s.lon0, e[0], e[1]);
+    if (f !== null) return { t: s.t0 + f * (s.t1 - s.t0), lat: s.lat0 + (e[0] - s.lat0) * f, lon: s.lon0 + (e[1] - s.lon0) * f };
+  }
+  return null;
+}
 function renderResults() {
   const best = results[bestIndex()];
   const r = results[selected];
+  if (r.ok && viaGate()) r.via = viaPassage(r); else r.via = null;
+  if (ecRoute && Math.abs(ecRoute.depT - r.depT) > 0.01) ecRoute = null;
+  renderEc();
   r.view = groupLegs(r.steps, state.simple ? 22 : 6, !state.simple);
   $('#depBlock').hidden = racing();
   if (!$('#depAt').value) { const dd = atT(r.depT), p2 = n => String(n).padStart(2, '0'); $('#depAt').value = dd.getFullYear() + '-' + p2(dd.getMonth() + 1) + '-' + p2(dd.getDate()) + 'T' + p2(dd.getHours()) + ':' + p2(dd.getMinutes()); }
@@ -1432,7 +1561,9 @@ function renderResults() {
   if (racing()) fact('Calculée', clockFmt.format(atT(r.depT))); else fact('Arrivée', clockFmt.format(atT(r.arrT)));
   fact('Durée', fmtDays(r.dur));
   fact('Distance', Math.round(r.dist) + ' Mn, à ' + (r.dist / r.dur).toFixed(1) + ' nds de moyenne');
-  if (goalGate()) fact('Passage de la porte', fmtDM(end.lat, 'N', 'S') + ', ' + fmtDM(end.lon, 'E', 'O'));
+  if (r.via) fact('Passage de la première porte', clockFmt.format(atT(r.via.t)) + ', à ' + fmtDM(r.via.lat, 'N', 'S') + ', ' + fmtDM(r.via.lon, 'E', 'O') + (racing() && raceMs() !== null ? ' (chrono ' + fmtRace((atT(r.via.t) - raceMs()) / 3600e3) + ')' : ''));
+  if (goalGate()) fact(r.via ? 'Porte suivante' : 'Passage de la porte', fmtDM(end.lat, 'N', 'S') + ', ' + fmtDM(end.lon, 'E', 'O'));
+  if (r.arrT > grid.nT - 1) fact('Attention', 'Le vent n\'est prévu que jusqu\'au ' + clockFmt.format(atT(grid.nT - 1)) + ' : la fin de la route utilise la dernière prévision, l\'arrivée est indicative.');
   if (racing() && raceMs() !== null && atT(r.arrT) > raceMs()) fact('Chrono à l\'arrivée', fmtRace((atT(r.arrT) - raceMs()) / 3600e3));
   const nx = r.view.find((L, i) => i > 0 && atT(L.t0) > Date.now() && Math.sign(r.view[i - 1].twaAvg) !== Math.sign(L.twaAvg));
   if (nx) fact('Prochain changement de bord', clockFmt.format(atT(nx.t0)) + ', cap ' + Math.round(nx.hdg) + '°, à ' + posOf(nx));
@@ -1506,7 +1637,7 @@ let pv = null, mapW = 0, mapH = 0, raf = 0;
 function fitAll() {
   const tgt = target(), pts = [[START.lat, START.lon]];
   if (!isNaN(tgt.lat) && !isNaN(tgt.lon)) pts.push([tgt.lat, tgt.lon]);
-  const g0 = goalGate(); if (g0) pts.push([g0.a.lat, g0.a.lon], [g0.b.lat, g0.b.lon]);
+  [goalGate(), viaGate()].forEach(g => { if (g) gateEnds(g).forEach(p => pts.push([p.lat, p.lon])); });
   const r = results[selected]; if (r && r.ok) r.steps.forEach(s => pts.push([s.lat0, s.lon0]));
   let la0 = Math.min(...pts.map(p => p[0])) - 3, la1 = Math.max(...pts.map(p => p[0])) + 3;
   let lo0 = Math.min(...pts.map(p => p[1])) - 5, lo1 = Math.max(...pts.map(p => p[1])) + 3;
@@ -1667,6 +1798,21 @@ function drawMap() {
     prevPlan.pts.forEach((p, i) => { const [x, y] = XY(p[1], p[2]); i ? c.lineTo(x, y) : c.moveTo(x, y); });
     c.stroke(); c.setLineDash([]);
   }
+  // Route calculée avec le modèle européen, en pointillés
+  if (showRoute && ecRoute && ecRoute.ok) {
+    c.strokeStyle = theme === 'night' ? '#C79BFF' : '#7B3FC4'; c.lineWidth = 2.2; c.setLineDash([6, 4]); c.beginPath();
+    ecRoute.steps.forEach((s, i) => { const [x, y] = XY(s.lat0, s.lon0); i ? c.lineTo(x, y) : c.moveTo(x, y); });
+    const e = ecRoute.end || tgt; { const [x, y] = XY(e.lat, e.lon); c.lineTo(x, y); } c.stroke(); c.setLineDash([]);
+  }
+  // Trace déjà parcourue, d'après le journal de course
+  const track = racing() ? (state.log || []).filter(x => raceMs() !== null && x.at > raceMs()).map(x => ({ lat: x.lat, lon: x.lon })) : [];
+  // Longitudes rendues continues en remontant depuis le bateau, pour que la trace ne saute pas à ±180°.
+  for (let i = track.length - 1, ref = START.lon; i >= 0; i--) { track[i].lon += 360 * Math.round((ref - track[i].lon) / 360); ref = track[i].lon; }
+  if (track.length > 1) {
+    c.strokeStyle = ink; c.globalAlpha = 0.55; c.lineWidth = 1.6; c.setLineDash([2, 4]); c.beginPath();
+    track.forEach((x, i) => { const [px, py] = XY(x.lat, x.lon); i ? c.lineTo(px, py) : c.moveTo(px, py); }); c.stroke(); c.setLineDash([]);
+    c.fillStyle = ink; track.forEach(x => { const [px, py] = XY(x.lat, x.lon); c.beginPath(); c.arc(px, py, 1.8, 0, 7); c.fill(); }); c.globalAlpha = 1;
+  }
   // 7. Route, colorée par bord, avec un liseré pour rester lisible sur le fond
   if (showRoute) {
     c.lineJoin = 'round'; c.lineCap = 'round';
@@ -1712,13 +1858,18 @@ function drawMap() {
   flagsDrawn.forEach(([x, y, n]) => { c.font = '700 11px ' + fBody; const w = c.measureText(n).width, box = { x0: x - w - 6, y0: y - 30, x1: x - 2, y1: y - 17 }; if (!hit(box)) { taken.push(box); label(n, x - w - 4, y - 19, '700 11px ' + fBody); } });
   (typeof ticks !== 'undefined' ? ticks : []).forEach(([x, y, dt]) => place(dt.getHours() === 0 ? dayFmt.format(dt).replace(/\.$/, '') + ' 0 h' : dt.getHours() + ' h', x, y, (dt.getHours() === 0 ? '700 ' : '500 ') + '11px ' + fBody));
   // 9. Porte ou cible
-  const gt = goalGate();
-  if (gt) {
-    const [x1, y1] = XY(gt.a.lat, gt.a.lon), [x2, y2] = XY(gt.b.lat, gt.b.lon);
+  const gt = goalGate(), vg = viaGate();
+  const drawGate = (g, name) => {
+    const [a, b] = gateEnds(g), [x1, y1] = XY(a.lat, a.lon), [x2, y2] = XY(b.lat, b.lon);
     c.lineWidth = 6; c.strokeStyle = halo; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
     c.strokeStyle = col('--accent'); c.lineWidth = 3; c.setLineDash([8, 5]); c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); c.setLineDash([]);
-    label('Porte', Math.min(Math.max(Math.min(x1, x2), 0), W - 60) + 6, Math.min(y1, y2) - 8, '600 12px ' + fBody);
-    if (showRoute && r.end) { const [x, y] = XY(r.end.lat, r.end.lon); c.strokeStyle = ink; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 7, 0, 7); c.stroke(); }
+    label(name, Math.min(Math.max(Math.min(x1, x2), 0), W - 90) + 6, Math.min(y1, y2) - 8, '600 12px ' + fBody);
+  };
+  const ring = p => { const [x, y] = XY(p.lat, p.lon); c.strokeStyle = ink; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 7, 0, 7); c.stroke(); };
+  if (vg) { drawGate(vg, 'Porte'); if (showRoute && r.via) ring(r.via); }
+  if (gt) {
+    drawGate(gt, vg ? 'Porte suivante' : 'Porte');
+    if (showRoute && r.end) ring(r.end);
   } else if (!isNaN(tgt.lat) && !isNaN(tgt.lon)) {
     const [x, y] = XY(tgt.lat, tgt.lon); c.strokeStyle = ink; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 7, 0, 7); c.moveTo(x - 11, y); c.lineTo(x + 11, y); c.moveTo(x, y - 11); c.lineTo(x, y + 11); c.stroke();
     label('Cible', x + 11, y - 6, '600 12px ' + fBody);
@@ -1786,7 +1937,7 @@ function drawMap() {
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '24';
+const VERSION = '25';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -1891,18 +2042,69 @@ function markLeg(lat, lon, el) {
   return early ? 1 : 4;
 }
 // Avance ou retard à la position du bateau, en supposant une progression régulière entre les deux repères qui l'encadrent.
-function paceInfo() {
-  const ms = raceMs(); if (!racing() || ms === null || START === OUESSANT) return null;
-  const at = state.posAt || Date.now(), el = (at - ms) / 3600e3; if (el <= 0) return null;
-  const leg = markLeg(START.lat, START.lon, el), A = leg ? MARKS[leg - 1] : { pos: [OUESSANT.lat, OUESSANT.lon], rec: 0, avg: 0 }, B = MARKS[leg];
-  const dA = hav(A.pos[0], A.pos[1], START.lat, START.lon), dB = hav(START.lat, START.lon, B.pos[0], B.pos[1]), f = dA + dB > 0 ? dA / (dA + dB) : 0;
-  return { leg, at, rec: el - (A.rec + f * (B.rec - A.rec)), avg: el - (A.avg + f * (B.avg - A.avg)) };
+// Retard (positif) ou avance (négatif), en heures, sur le record et la moyenne, pour une position et une heure données.
+function paceAt(lat, lon, at) {
+  const ms = raceMs(); if (ms === null) return null;
+  const el = (at - ms) / 3600e3; if (el <= 0) return null;
+  const leg = markLeg(lat, lon, el), A = leg ? MARKS[leg - 1] : { pos: [OUESSANT.lat, OUESSANT.lon], rec: 0, avg: 0 }, B = MARKS[leg];
+  const dA = hav(A.pos[0], A.pos[1], lat, lon), dB = hav(lat, lon, B.pos[0], B.pos[1]), f = dA + dB > 0 ? dA / (dA + dB) : 0;
+  return { leg, at, el, rec: el - (A.rec + f * (B.rec - A.rec)), avg: el - (A.avg + f * (B.avg - A.avg)) };
 }
+function paceInfo() {
+  if (!racing() || START === OUESSANT) return null;
+  return paceAt(START.lat, START.lon, state.posAt || Date.now());
+}
+/* ---------- Journal de course ---------- */
+// Garde la position saisie ; une nouvelle saisie moins de 20 minutes après la précédente la remplace.
+function logPos() {
+  if (!racing() || START === OUESSANT || isNaN(START.lat) || isNaN(START.lon)) return;
+  const L = state.log || (state.log = []), at = state.posAt || Date.now(), e = num(state.energy);
+  const entry = { at, lat: +START.lat.toFixed(4), lon: +START.lon.toFixed(4), e: isNaN(e) ? null : e };
+  const last = L[L.length - 1];
+  if (last && Math.abs(at - last.at) < 20 * 60e3) L[L.length - 1] = entry; else L.push(entry);
+  L.sort((a, b) => a.at - b.at); if (L.length > 600) L.splice(0, L.length - 600);
+  saveState(); renderLog();
+}
+function renderLog() {
+  const box = $('#logChart'), list = $('#logList'); if (!box) return;
+  const L = (state.log || []).filter(x => raceMs() !== null && x.at > raceMs()), P = L.map(x => ({ ...x, p: paceAt(x.lat, x.lon, x.at) })).filter(x => x.p);
+  box.textContent = ''; list.textContent = '';
+  if (P.length < 2) { const h = document.createElement('p'); h.className = 'hint'; h.textContent = P.length ? 'Une position enregistrée. Le graphique apparaîtra dès la prochaine.' : 'Aucune position enregistrée pour l\'instant.'; box.append(h); }
+  else {
+    // Graphique : avance en heures (positif = devant) sur le record et sur la moyenne, en fonction du temps de course.
+    const W = 340, H = 180, l = 34, rr = 8, tp = 12, bt = 24, xs = P.map(x => x.p.el), ys = P.flatMap(x => [-x.p.rec, -x.p.avg]);
+    const x0 = 0, x1 = Math.max(24, Math.ceil(Math.max(...xs) / 24) * 24), yMax = Math.max(6, ...ys.map(Math.abs)), step = yMax > 48 ? 24 : yMax > 24 ? 12 : yMax > 12 ? 6 : 3, y1 = Math.ceil(yMax / step) * step;
+    const X = v => l + (v - x0) / (x1 - x0) * (W - l - rr), Y = v => tp + (y1 - v) / (2 * y1) * (H - tp - bt);
+    const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('class', 'logsvg'); svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', 'Avance ou retard sur le record et la moyenne au fil de la course');
+    const el = (n, a, txt) => { const e2 = document.createElementNS(ns, n); for (const k in a) e2.setAttribute(k, a[k]); if (txt != null) e2.textContent = txt; svg.append(e2); return e2; };
+    for (let v = -y1; v <= y1; v += step) { el('line', { x1: l, x2: W - rr, y1: Y(v), y2: Y(v), class: v ? 'g' : 'z' }); el('text', { x: l - 4, y: Y(v) + 3.5, class: 'ty', 'text-anchor': 'end' }, (v > 0 ? '+' : '') + v + ' h'); }
+    const dstep = x1 > 24 * 14 ? 7 : x1 > 24 * 7 ? 2 : 1;
+    for (let d = 0; d * 24 <= x1; d += dstep) el('text', { x: X(d * 24), y: H - 8, class: 'tx', 'text-anchor': 'middle' }, 'J' + d);
+    const path = k => P.map((x, i) => (i ? 'L' : 'M') + X(x.p.el).toFixed(1) + ' ' + Y(-x.p[k]).toFixed(1)).join(' ');
+    el('path', { d: path('avg'), class: 'avg' }); el('path', { d: path('rec'), class: 'rec' });
+    P.forEach(x => el('circle', { cx: X(x.p.el), cy: Y(-x.p.rec), r: 2.6, class: 'rec' }));
+    box.append(svg);
+    const lg = document.createElement('p'); lg.className = 'loglegend'; lg.innerHTML = '<span class="rec">sur le record</span><span class="avg">sur la moyenne</span>'; box.append(lg);
+  }
+  // Les six dernières positions, avec la vitesse moyenne depuis la précédente.
+  P.slice(-6).reverse().forEach((x, k, arr) => {
+    const i = P.indexOf(x), prev = P[i - 1], row = document.createElement('div'); row.className = 'k';
+    const a = document.createElement('span'); a.textContent = dayFmt.format(new Date(x.at)).replace(/\.$/, '') + ' ' + hourFmt.format(new Date(x.at));
+    const b = document.createElement('span'); const r = x.p.rec;
+    b.textContent = fmtDM(x.lat, 'N', 'S') + ', ' + fmtDM(x.lon, 'E', 'O');
+    const s = document.createElement('small'); s.className = 'kn';
+    s.textContent = fmtDur(Math.abs(r)) + (r > 0 ? ' de retard' : ' d\'avance') + ' sur le record' + (prev ? ', ' + (hav(prev.lat, prev.lon, x.lat, x.lon) / Math.max((x.at - prev.at) / 3600e3, 0.01)).toFixed(1).replace('.', ',') + ' nds depuis la précédente' : '') + (x.e != null ? ', énergie ' + Math.round(x.e) + ' %' : '');
+    b.append(s); row.append(a, b); list.append(row);
+  });
+}
+$('#logClear').addEventListener('click', () => { if (!(state.log || []).length) return; state.log = []; saveState(); renderLog(); drawMap(); });
 // Temps de course au repère : prévu quand la route calculée y arrive, estimé sinon (même vitesse moyenne jusqu'au repère).
 function myMarkTime(m) {
   const ms = raceMs(), r = results[selected];
   if (ms === null || !grid || !r || !r.ok || $('#results').hidden || !racing()) return null;
   const e = r.end || target(), tEnd = (atT(r.arrT) - ms) / 3600e3;
+  if (r.via && m.id === 'eq1' && Math.abs(r.via.lat) < 0.3) return { h: (atT(r.via.t) - ms) / 3600e3, kind: 'prévu' };
   const onMark = m.id === 'eq1' || m.id === 'eq2' ? Math.abs(e.lat) < 0.3 : m.id === 'fin' ? hav(e.lat, e.lon, m.pos[0], m.pos[1]) < 30 : Math.abs(angDiff(e.lon, m.pos[1])) < 0.5;
   if (onMark) return { h: tEnd, kind: 'prévu' };
   const v = r.dist / r.dur; if (!(v > 1)) return null;
@@ -1970,7 +2172,7 @@ function updateDash() {
 
 $('#ver').textContent = 'version ' + VERSION;
 $('#about').textContent = 'Version ' + VERSION + '. Vent : modèle GFS de la NOAA, distribué par Open-Meteo, limité à environ six téléchargements par jour. Côtes et limite des glaces approchées : vérifie toujours la route avec le jeu. Polaire relevée dans le jeu, de 2 à 30 nds de vent. Tes réglages et la dernière route restent enregistrés sur cet appareil.';
-fillSettings(); showPen(); syncCustom(); showCal(); updateChrono(); renderPosed(); updateDash(); updateTime();
+fillSettings(); showPen(); syncCustom(); syncNext(); if (!(state.log || []).length && state.posAt) logPos(); renderLog(); showCal(); updateChrono(); renderPosed(); updateDash(); updateTime();
 showTab(location.hash.slice(1) || 'course', false);
 restoreSession();
 </script>
