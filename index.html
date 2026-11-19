@@ -143,6 +143,7 @@ body.mapfull .mapwrap{border-radius:0}
 .loglegend .tws::before{background:#4FA3D9}
 .loglegend .bs::before{background:var(--accent)}
 .loglegend .man::before{background:repeating-linear-gradient(90deg,var(--muted) 0 2px,transparent 2px 5px)}
+#refTable .edit{cursor:pointer}
 .sw.dash{background:repeating-linear-gradient(90deg,var(--c) 0 5px,transparent 5px 8px)}
 .fl{display:inline-block;width:10px;height:8px;margin-right:6px;vertical-align:middle;clip-path:polygon(0 0,100% 50%,0 100%)}
 .wscale{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:center;width:100%}
@@ -2133,7 +2134,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '28';
+const VERSION = '29';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -2338,16 +2339,55 @@ function renderLog() {
 }
 $('#logClear').addEventListener('click', () => { if (!(state.log || []).length) return; state.log = []; saveState(); renderLog(); drawMap(); });
 // Temps de course au repère : prévu quand la route calculée y arrive, estimé sinon (même vitesse moyenne jusqu'au repère).
+// Instant (fraction 0 à 1) où le trajet a -> b franchit le repère : l'équateur, ou le méridien du cap dans les mers du Sud.
+function markCross(m, a, b) {
+  if (m.id === 'eq1' || m.id === 'eq2') {
+    const goingSouth = m.id === 'eq1';
+    if (goingSouth ? (a.lat > 0 && b.lat <= 0) : (a.lat < 0 && b.lat >= 0)) return a.lat / (a.lat - b.lat);
+    return null;
+  }
+  if (m.id === 'fin') return null;
+  if (a.lat > -25 || b.lat > -25) return null;
+  const da = angDiff(normLon(a.lon), m.pos[1]), db = angDiff(normLon(b.lon), m.pos[1]);   // négatif à l'ouest du méridien
+  return da < 0 && db >= 0 && db - da < 90 ? -da / (db - da) : null;
+}
 function myMarkTime(m) {
   const ms = raceMs(), r = results[selected];
   if (ms === null || !grid || !r || !r.ok || $('#results').hidden || !racing()) return null;
   const e = r.end || target(), tEnd = (atT(r.arrT) - ms) / 3600e3;
-  if (r.via && m.id === 'eq1' && Math.abs(r.via.lat) < 0.3) return { h: (atT(r.via.t) - ms) / 3600e3, kind: 'prévu' };
-  const onMark = m.id === 'eq1' || m.id === 'eq2' ? Math.abs(e.lat) < 0.3 : m.id === 'fin' ? hav(e.lat, e.lon, m.pos[0], m.pos[1]) < 30 : Math.abs(angDiff(e.lon, m.pos[1])) < 0.5;
+  // Le repère est sur la route calculée : heure de passage lue sur la route.
+  const S = r.steps;
+  for (let i = 0; i < S.length; i++) {
+    const a = { lat: S[i].lat0, lon: S[i].lon0 }, b = i + 1 < S.length ? { lat: S[i + 1].lat0, lon: S[i + 1].lon0 } : { lat: e.lat, lon: e.lon }, t1 = i + 1 < S.length ? S[i + 1].t0 : r.arrT;
+    const f = markCross(m, a, b); if (f !== null) return { h: (atT(S[i].t0 + f * (t1 - S[i].t0)) - ms) / 3600e3, kind: 'prévu' };
+  }
+  const onMark = m.id === 'eq1' || m.id === 'eq2' ? Math.abs(e.lat) < 0.3 : m.id === 'fin' ? hav(e.lat, e.lon, m.pos[0], m.pos[1]) < 30 : Math.abs(angDiff(e.lon, m.pos[1])) < 2.5;
   if (onMark) return { h: tEnd, kind: 'prévu' };
   const v = r.dist / r.dur; if (!(v > 1)) return null;
   return { h: tEnd + hav(e.lat, e.lon, m.pos[0], m.pos[1]) / v, kind: 'estimé' };
 }
+const fmtJHM = h => { const t = Math.round(h * 60), d = Math.floor(t / 1440), hh = Math.floor(t % 1440 / 60), mm = t % 60; return (d ? d + ' j ' : '') + hh + ' h ' + String(mm).padStart(2, '0'); };
+// Passage d'un repère déduit du journal : interpolation entre les deux positions qui l'encadrent.
+function logCross(m) {
+  const ms = raceMs(), L = (state.log || []).filter(x => ms !== null && x.at > ms);
+  for (let i = 1; i < L.length; i++) { const f = markCross(m, L[i - 1], L[i]); if (f !== null) return (L[i - 1].at + f * (L[i].at - L[i - 1].at) - ms) / 3600e3; }
+  return null;
+}
+// Saisie du temps officiel d'un repère passé, tel que le jeu l'affiche (par exemple « 8j 0h 41min »).
+function parseJHM(s) {
+  const m = /^\s*(?:(\d+)\s*j)?\s*(?:(\d+)\s*h)?\s*(?:(\d+)\s*(?:min|m))?/i.exec(s || '');
+  if (!m || (!m[1] && !m[2] && !m[3])) return null;
+  return (+m[1] || 0) * 24 + (+m[2] || 0) + (+m[3] || 0) / 60;
+}
+$('#refTable').addEventListener('click', e => {
+  const c = e.target.closest('[data-mark]'); if (!c) return;
+  const id = c.dataset.mark, cur = (state.real || {})[id];
+  const v = window.prompt('Ton temps de passage, tel qu\'affiché par le jeu (par exemple « 8j 0h 41min »). Laisse vide pour effacer.', cur != null ? fmtJHM(cur).replace(/ /g, '') : '');
+  if (v === null) return;
+  state.real = state.real || {};
+  if (!v.trim()) delete state.real[id]; else { const h = parseJHM(v); if (h == null) return; state.real[id] = h; }
+  saveState(); updateDash();
+});
 function renderRefs(pc) {
   const box = $('#refTable'); box.textContent = '';
   const cell = (txt, cls, small) => { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = txt; if (small) { const s = document.createElement('small'); s.textContent = small; d.append(s); } box.append(d); };
@@ -2361,7 +2401,12 @@ function renderRefs(pc) {
       if (mine && mine.kind === 'prévu' && (!splits[m.id] || Math.abs(splits[m.id] - mine.h) > 0.05)) { splits[m.id] = mine.h; saveState(); }
       if (mine) { const d = mine.h - m.rec; cell(fmtJH(mine.h), cls, mine.kind + ', ' + (d >= 0 ? '+' : '−') + fmtJH(Math.abs(d)) + ' sur le record'); }
       else cell('—', cls, 'calcule une route');
-    } else if (i < leg) cell(splits[m.id] ? fmtJH(splits[m.id]) : 'passé', cls, splits[m.id] ? 'dernière prévision' : '');
+    } else if (i < leg) {
+      const real = (state.real || {})[m.id], fromLog = real == null ? logCross(m) : null;
+      const h = real != null ? real : fromLog != null ? fromLog : splits[m.id];
+      cell(h != null ? fmtJHM(h) : 'passé', cls + ' edit', real != null ? 'temps du jeu, ' + (h - m.rec >= 0 ? '+' : '−') + fmtJH(Math.abs(h - m.rec)) + ' sur le record' : fromLog != null ? 'd\'après ton journal · touche pour corriger' : h != null ? 'dernière prévision · touche pour corriger' : 'touche pour saisir ton temps');
+      box.lastChild.dataset.mark = m.id;
+    }
     else cell('', cls);
   });
 }
