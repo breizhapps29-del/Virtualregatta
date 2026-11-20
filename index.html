@@ -75,6 +75,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .note{padding:10px 12px;border-radius:6px;background:var(--warn-bg);color:var(--warn);font-size:.92rem}
 .status{min-height:1.4em;color:var(--muted);font-size:.92rem;overflow-wrap:anywhere}
 .status.err{color:var(--bad)}
+.spdtab{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:6px}.spdtab th,.spdtab td{text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)}.spdtab th:first-child,.spdtab td:first-child{text-align:left}.spdtab tr.out td{color:var(--muted);text-decoration:line-through}
 .shotrow{display:grid;gap:4px;margin-bottom:6px}.shotrow button{justify-self:start}.shotrow .hint{margin:0}
 .empty{padding:22px 16px;border:1px dashed var(--line);border-radius:6px;color:var(--muted);display:flex;flex-direction:column;gap:12px;align-items:flex-start}
 
@@ -517,14 +518,15 @@ details > * + *{margin-top:12px}
     <div class="block">
       <h2>Caler la polaire</h2>
       <div class="panel">
-        <p class="hint">Lis dans le jeu la vitesse du bateau pour un vent et un angle donnés. L'outil ajuste le coefficient.</p>
+        <p class="hint">Chaque capture lue dans l'onglet Course ajoute ici un relevé (vent, angle, vitesse du bateau). Tu peux aussi en saisir un à la main. Avec plusieurs relevés, l'outil règle la vitesse par force de vent et écarte ceux pris pendant une manœuvre.</p>
         <div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
           <label class="f"><span>Vent (nds)</span><input id="cTws" inputmode="decimal"></label>
           <label class="f"><span>Angle (°)</span><input id="cTwa" inputmode="decimal"></label>
           <label class="f"><span>Bateau (nds)</span><input id="cBs" inputmode="decimal"></label>
         </div>
-        <div class="row"><button id="btnCal" type="button">Caler la polaire</button></div>
+        <div class="row"><button id="btnCal" type="button">Ajouter ce relevé</button><button id="spdClear" type="button">Effacer les relevés</button></div>
         <p class="status" id="polStatus"></p>
+        <table class="spdtab" id="spdTable" hidden><thead><tr><th>Quand</th><th>Vent</th><th>Angle</th><th>Bateau</th><th>Écart</th></tr></thead><tbody></tbody></table>
       </div>
     </div>
     <div class="block">
@@ -600,6 +602,13 @@ function polarSpeed(twa, tws) {
   const v0 = POLAR[i][j] * (1 - fj) + POLAR[i][j + 1] * fj;
   const v1 = POLAR[i + 1][j] * (1 - fj) + POLAR[i + 1][j + 1] * fj;
   return v0 * (1 - fi) + v1 * fi;
+}
+// Coefficient de polaire selon la force du vent : relevés du jeu par tranche de vent, sinon le coefficient unique.
+function coefAt(cfg, tws) {
+  const B = cfg.coefBands; if (!B || !B.length) return cfg.coef;
+  if (tws <= B[0].tws) return B[0].k;
+  for (let i = 1; i < B.length; i++) if (tws <= B[i].tws) { const f = (tws - B[i - 1].tws) / (B[i].tws - B[i - 1].tws); return B[i - 1].k + f * (B[i].k - B[i - 1].k); }
+  return B[B.length - 1].k;
 }
 
 // Terres approchées (lat, lon), longitudes entre -180 et 180. Les plus petites îles sont des rectangles.
@@ -777,7 +786,7 @@ function computeRoute(cfg, samples, depT) {
       const list = heads.concat([bTg]);
       for (const h of list) {
         const twa = angDiff(h, w.twd);
-        const bs = polarSpeed(twa, w.tws) * coef;
+        const bs = polarSpeed(twa, w.tws) * coefAt(cfg, w.tws);
         if (bs < 1) continue;
         const tack = twa > 0 ? 1 : -1;
         const change = p.tack !== 0 && tack !== p.tack;
@@ -861,7 +870,7 @@ function followBuoys(cfg, samples, depT, buoys) {
       if (d < 0.2) break;
       if (guard > 2000 || t - depT > 240) return { ok: false, depT };
       const h = bearing(lat, lon, b.lat, b.lon), w = W(lat, lon, t), twa = angDiff(h, w.twd);
-      const bs = Math.max(polarSpeed(twa, w.tws) * coef, 0.3), tk = twa > 0 ? 1 : -1;
+      const bs = Math.max(polarSpeed(twa, w.tws) * coefAt(cfg, w.tws), 0.3), tk = twa > 0 ? 1 : -1;
       const sl = Math.abs(twa) < spiFrom(w.tws) ? 1 : 2;
       const ch = tack !== 0 && tk !== tack, sc = sail && sl !== sail;
       const man = manoeuvre(cfg, w.tws, E, ch, !!sc), pen = man.pen; tack = tk; sail = sl;
@@ -1061,7 +1070,7 @@ const COURSES = {
 const COURSE_ID = (() => { try { return localStorage.getItem('routage-course') === 'rhum' ? 'rhum' : 'jv'; } catch (e) { return 'jv'; } })();
 const COURSE = COURSES[COURSE_ID];
 const STORE_KEY = COURSE.store;
-const DEFAULT_STATE = { preset: COURSE.defPreset, tlat: '16.5', tlon: '-27', coef: '1.00', pen: '8', dt: '2', cTws: '', cTwa: '', cBs: '', mode: 'start', slat: '', slon: '', simple: true, minleg: '4', nflags: '6', fh: '24', cal: [], log: [], next: '', sailPen: '0', penMode: 'game', penSpeed: '50', energy: '100', ice: '', raceStart: COURSE.raceStart, posed: null, posAt: 0, splits: {} };
+const DEFAULT_STATE = { preset: COURSE.defPreset, tlat: '16.5', tlon: '-27', coef: '1.00', pen: '8', dt: '2', cTws: '', cTwa: '', cBs: '', mode: 'start', slat: '', slon: '', simple: true, minleg: '4', nflags: '6', fh: '24', cal: [], log: [], next: '', sailPen: '0', penMode: 'game', penSpeed: '50', energy: '100', ice: '', raceStart: COURSE.raceStart, posed: null, posAt: 0, splits: {}, spd: [] };
 const OUESSANT = COURSE.start;   // point de départ de la course choisie (le nom vient de la première version)
 let START = OUESSANT;
 let state = loadState(), results = [], selected = 0, tapped = null;
@@ -1298,6 +1307,7 @@ $('#shotFile').addEventListener('change', async ev => {
     for (const f of files) {
       const r = await readShot(f, say);
       for (const k of ['pos', 'twa', 'tws', 'bs', 'hdg', 'energy']) if (r[k] != null && got[k] == null) got[k] = r[k];
+      if (r.twa && r.tws != null && r.bs != null && !addSpeed(r.tws, r.twa.deg, r.bs, f.lastModified > Date.now() - 36 * 3600e3 ? f.lastModified : Date.now(), 'capture')) got.spd = (got.spd || 0) + 1;
       if (r.twd != null && r.tws != null && got.twd == null) { got.twd = r.twd; got.wTws = r.tws; }   // direction et force lues sur la même capture
       if (r.pos) at = f.lastModified;
       else if (!at) at = f.lastModified;
@@ -1317,7 +1327,8 @@ $('#shotFile').addEventListener('change', async ev => {
     else if (got.tws != null) { $('#qSpd').value = got.tws; done.push('vent ' + got.tws + ' nds' + (got.twa ? ' à ' + got.twa.deg + '° ' + got.twa.side : '')); }
     if (got.bs != null) done.push('vitesse ' + got.bs + ' nds');
     if (!done.length) { msg.classList.add('err'); msg.textContent = 'Rien de lisible sur cette capture. Prends la vue 3D ou la carte en entier, sans recadrer.'; return; }
-    say('Lu à ' + hourFmt.format(new Date(at)) + ' : ' + done.join(', ') + '. Vérifie avec le jeu avant de calculer.' + (got.pos ? '' : ' Pas de position : ajoute une capture de la vue 3D.') + (got.twd == null && got.tws != null ? ' Pour la direction du vent, ajoute une capture de la carte.' : ''));
+    if (got.spd) showSpeed();
+    say('Lu à ' + hourFmt.format(new Date(at)) + ' : ' + done.join(', ') + '.' + (got.spd ? ' Relevé de vitesse ajouté au calage (' + state.spd.filter(e => !e.out).length + ' en tout, coefficient ' + state.coef.replace('.', ',') + ').' : '') + ' Vérifie avec le jeu avant de calculer.' + (got.pos ? '' : ' Pas de position : ajoute une capture de la vue 3D.') + (got.twd == null && got.tws != null ? ' Pour la direction du vent, ajoute une capture de la carte.' : ''));
   } catch (e) {
     msg.classList.add('err'); msg.textContent = /chargement|fetch|network|load/i.test(e.message) ? 'Le lecteur de texte n\'a pas pu se charger : il faut du réseau la première fois.' : 'Lecture impossible : ' + e.message + '. Choisis la capture depuis « Fichiers » ou la Galerie plutôt que Google Photos, et envoie-la-moi si ça persiste.';
   } finally { btn.disabled = false; }
@@ -1535,15 +1546,57 @@ function showPen() {
 }
 $('#ice').addEventListener('change', () => { readSettings(); if (results.length) { results = []; setResultsVisible(false); dropRoute(); setStatus('Limite des glaces modifiée. Mets à jour la route.'); } drawMap(); });
 function polMsg(m, err) { const el = $('#polStatus'); el.textContent = m; el.classList.toggle('err', !!err); }
+// Relevés de vitesse : le rapport vitesse du jeu / polaire, médiane par tranche de vent, relevés aberrants écartés.
+const BANDS = [0, 10, 16, 22, 99];
+const med = a => { const b = [...a].sort((x, y) => x - y), n = b.length; return n % 2 ? b[(n - 1) / 2] : (b[n / 2 - 1] + b[n / 2]) / 2; };
+let coefBands = null;
+function calcCoef() {
+  const L = (state.spd || []).filter(e => Date.now() - e.at < 10 * 86400e3);
+  state.spd = L; L.forEach(e => { e.out = false; });
+  coefBands = null;
+  if (!L.length) return null;
+  const m = med(L.map(e => e.r));
+  if (L.length >= 3) L.forEach(e => { e.out = Math.abs(e.r / m - 1) > 0.12; });
+  const ok = L.filter(e => !e.out), all = med(ok.map(e => e.r));
+  const bands = [];
+  for (let b = 0; b < BANDS.length - 1; b++) {
+    const g = ok.filter(e => e.tws >= BANDS[b] && e.tws < BANDS[b + 1]);
+    if (g.length >= 2) bands.push({ tws: g.reduce((s, e) => s + e.tws, 0) / g.length, k: +med(g.map(e => e.r)).toFixed(3), n: g.length });
+  }
+  if (bands.length >= 2) coefBands = bands;
+  state.coef = all.toFixed(2); $('#coef').value = state.coef;
+  return { all, ok: ok.length, out: L.length - ok.length, bands };
+}
+function addSpeed(tws, twa, bs, at, src) {
+  const p = polarSpeed(Math.abs(twa), tws);
+  if (!(tws > 0) || !(bs > 0) || p < 1 || Math.abs(twa) < 35) return 'Cet angle est trop près du vent pour caler la vitesse.';
+  const L = state.spd || (state.spd = []);
+  if (L.some(e => Math.abs(e.at - at) < 5 * 60e3 && e.tws === tws && e.bs === bs)) return null;
+  L.push({ at, tws, twa: Math.round(Math.abs(twa)), bs, r: +(bs / p).toFixed(3), src });
+  L.sort((a, b) => a.at - b.at); if (L.length > 24) L.splice(0, L.length - 24);
+  return null;
+}
+function showSpeed() {
+  const c = calcCoef(), tb = $('#spdTable'), body = tb.querySelector('tbody'), L = state.spd || [];
+  saveState();
+  tb.hidden = !L.length;
+  const pct = r => { const v = Math.round((r - 1) * 100); return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v) + ' %'; };
+  body.innerHTML = L.slice().reverse().map(e => '<tr' + (e.out ? ' class="out"' : '') + '><td>' + new Date(e.at).toLocaleString('fr-FR', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) + '</td><td>' + String(e.tws).replace('.', ',') + '</td><td>' + e.twa + '°</td><td>' + String(e.bs).replace('.', ',') + '</td><td>' + pct(e.r) + '</td></tr>').join('');
+  if (!c) { polMsg('Aucun relevé : le coefficient de polaire ci-dessus s\'applique (' + state.coef + ').'); return; }
+  let m = 'Coefficient réglé à ' + c.all.toFixed(2).replace('.', ',') + ' d\'après ' + c.ok + ' relevé' + (c.ok > 1 ? 's' : '') + '.';
+  if (coefBands) m += ' Par force de vent : ' + coefBands.map(b => Math.round(b.tws) + ' nds × ' + b.k.toFixed(2).replace('.', ',')).join(', ') + '.';
+  else if (c.ok >= 2) m += ' Encore quelques relevés dans d\'autres forces de vent et l\'outil réglera la vitesse par tranche de vent.';
+  if (c.out) m += ' ' + c.out + ' relevé' + (c.out > 1 ? 's écartés' : ' écarté') + ' (trop loin des autres, sans doute pendant une manœuvre).';
+  polMsg(m + ' Mets à jour la route pour l\'appliquer.');
+}
 $('#btnCal').addEventListener('click', () => {
   readSettings();
   const tws = num(state.cTws), twa = num(state.cTwa), bs = num(state.cBs);
   if ([tws, twa, bs].some(isNaN) || bs <= 0) { polMsg('Renseigne vent, angle et vitesse lus dans le jeu.', true); return; }
-  const p = polarSpeed(twa, tws);
-  if (p < 1) { polMsg('Cet angle est trop près du vent pour caler la polaire.', true); return; }
-  state.coef = (bs / p).toFixed(2); $('#coef').value = state.coef; saveState();
-  polMsg('Coefficient de polaire réglé à ' + state.coef + '.');
+  const err = addSpeed(tws, twa, bs, Date.now(), 'main'); if (err) { polMsg(err, true); return; }
+  ['cTws', 'cTwa', 'cBs'].forEach(id => { $('#' + id).value = ''; }); readSettings(); showSpeed();
 });
+$('#spdClear').addEventListener('click', () => { state.spd = []; showSpeed(); });
 
 let windLoadedAt = 0, refreshing = false;
 // Heure de la prévision GFS utilisée par le service (une nouvelle toutes les 6 heures : 0 h, 6 h, 12 h, 18 h UTC).
@@ -1619,7 +1672,8 @@ function makeCfg() {
   if (isNaN(coef) || coef <= 0 || isNaN(penalty) || penalty < 0) { setStatus('Vérifie le coefficient et la perte par manœuvre.', true); return null; }
   const ml = num(state.minleg);
   const sp = num(state.sailPen);
-  return { start: START, tgt, gate: goalGate(), via: [...(viaGate() ? [viaGate()] : []), ...COURSE.via], dt, coef, penalty, minLeg: isNaN(ml) || ml < 0 ? 0 : ml, sailPen: isNaN(sp) || sp < 0 ? 0 : sp, game: state.penMode === 'manual' ? null : { keep: keepSpeed(), solo: COURSE.solo }, E0: energyNow() };
+  calcCoef();
+  return { coefBands, start: START, tgt, gate: goalGate(), via: [...(viaGate() ? [viaGate()] : []), ...COURSE.via], dt, coef, penalty, minLeg: isNaN(ml) || ml < 0 ? 0 : ml, sailPen: isNaN(sp) || sp < 0 ? 0 : sp, game: state.penMode === 'manual' ? null : { keep: keepSpeed(), solo: COURSE.solo }, E0: energyNow() };
 }
 async function runList(cfg, times, label) {
   for (let i = 0; i < times.length; i++) {
@@ -2327,7 +2381,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '32';
+const VERSION = '33';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -2667,7 +2721,7 @@ $('#about').textContent = 'Version ' + VERSION + '. Vent : modèle GFS de la NOA
 })();
 $('#course').addEventListener('change', e => { try { localStorage.setItem('routage-course', e.target.value); } catch (er) {} location.reload(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
-fillSettings(); showPen(); syncCustom(); syncNext(); if (!(state.log || []).length && state.posAt) logPos(); renderLog(); showCal(); updateChrono(); renderPosed(); updateDash(); updateTime();
+fillSettings(); showPen(); showSpeed(); syncCustom(); syncNext(); if (!(state.log || []).length && state.posAt) logPos(); renderLog(); showCal(); updateChrono(); renderPosed(); updateDash(); updateTime();
 showTab(location.hash.slice(1) || 'course', false);
 restoreSession();
 </script>
