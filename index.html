@@ -72,6 +72,7 @@ button{cursor:pointer;border:1px solid var(--line);background:var(--surface);bor
 button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-size:1.08rem;padding:15px 18px;width:100%}
 button:disabled{opacity:.55;cursor:not-allowed}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.hint.alert{padding:10px 12px;border-radius:6px;background:var(--warn-bg);color:var(--warn);font-weight:600}
 .note{padding:10px 12px;border-radius:6px;background:var(--warn-bg);color:var(--warn);font-size:.92rem}
 .status{min-height:1.4em;color:var(--muted);font-size:.92rem;overflow-wrap:anywhere}
 .status.err{color:var(--bad)}
@@ -315,6 +316,7 @@ details > * + *{margin-top:12px}
           <label class="f"><span>Latitude</span><input id="tlat" inputmode="text" autocomplete="off"></label>
           <label class="f"><span>Longitude (O = négatif)</span><input id="tlon" inputmode="text" autocomplete="off"></label>
         </div>
+        <p class="hint" id="runNote"></p>
         <button id="btnGo" class="primary" type="button">Mettre à jour la route</button>
         <p class="status" id="status" role="status">Le vent est téléchargé s'il a plus de trois heures, puis la route est calculée. Le téléchargement prend deux à trois minutes.</p>
         <button id="btnRun" type="button" hidden>Calculer</button>
@@ -392,6 +394,7 @@ details > * + *{margin-top:12px}
       <span><i class="sw dash" style="--c:var(--bad)"></i>limite des glaces (si tu en saisis une)</span>
       <span><i class="sw dash" style="--c:#9b6ae0"></i>route du modèle européen</span>
       <span><i class="sw dash" style="--c:var(--muted)"></i>trace parcourue (journal)</span>
+      <span><i class="sw" style="background:#3E9AD0"></i>route prévue de tes bouées posées, le rond creux est où tu devrais être</span>
     </div>
     <div class="block">
       <h2>Vent</h2>
@@ -1636,13 +1639,33 @@ async function loadWind() {
   } finally { btn.disabled = false; }
 }
 $('#btnWind').addEventListener('click', loadWind);
+// Le jeu passe à une nouvelle prévision GFS toutes les 6 h (0 h, 6 h, 12 h, 18 h UTC), celle lancée 6 h plus tôt.
+const H6 = 6 * 3600e3;
+const lastSwitch = (now = Date.now()) => Math.floor(now / H6) * H6;
+const gameRun = (now = Date.now()) => lastSwitch(now) - H6;
+const utcH = ms => new Date(ms).getUTCHours() + ' h UTC';
+// Vent plus ancien que la prévision du jeu : il a été chargé avant le dernier changement et ne contient pas la prévision du jeu.
+const windBehind = () => !!grid && windLoadedAt < lastSwitch() && (!gfsRun || gfsRun < gameRun());
+function updateRunNote() {
+  const el = $('#runNote'); if (!el) return;
+  const sw = lastSwitch(), nx = sw + H6, gr = gameRun();
+  el.classList.remove('alert');
+  if (!grid) { el.textContent = 'Prochaine prévision dans le jeu à ' + hourFmt.format(new Date(nx)) + '.'; return; }
+  if (windBehind()) {
+    el.classList.add('alert');
+    el.textContent = 'Le jeu utilise la prévision de ' + utcH(gr) + ' depuis ' + hourFmt.format(new Date(sw)) + '. ' + (results.length ? 'Ta route a été calculée' : 'Ton vent a été chargé') + (gfsRun ? ' avec celle de ' + utcH(gfsRun) : ' avant') + ' : mets-la à jour, le vent sera rechargé.';
+    return;
+  }
+  el.textContent = gfsRun && gfsRun > gr ? 'Ta route utilise déjà la prévision de ' + utcH(gfsRun) + ', que le jeu prendra à ' + hourFmt.format(new Date(nx)) + '.'
+    : (gfsRun ? 'Ta route utilise la même prévision que le jeu. ' : '') + 'Prochaine prévision dans le jeu à ' + hourFmt.format(new Date(nx)) + '.';
+}
 // Bouton principal : recharge le vent s'il a plus de trois heures ou ne couvre plus le trajet, puis calcule.
 async function refreshAll() {
   readSettings();
   if (racing() && START === OUESSANT) { setStatus('Indique d\'abord la position du bateau, lue dans le jeu.', true); return; }
   const btn = $('#btnGo'); btn.disabled = true; refreshing = true;
   try {
-    const stale = !grid || Date.now() - windLoadedAt > 3 * 3600e3 || [START, ...goalPts()].some(p => isNaN(p.lat) || isNaN(p.lon) || !inGrid(p.lat, p.lon));
+    const stale = !grid || Date.now() - windLoadedAt > 3 * 3600e3 || windBehind() || [START, ...goalPts()].some(p => isNaN(p.lat) || isNaN(p.lon) || !inGrid(p.lat, p.lon));
     if (stale && !(await loadWind())) return;
     // Relevé du vent du jeu saisi avec la position : il corrige la prévision avant le calcul.
     const qd = $('#qDir').value.trim(), qs = $('#qSpd').value.trim();
@@ -2225,6 +2248,13 @@ function drawMap() {
     track.forEach((x, i) => { const [px, py] = XY(x.lat, x.lon); i ? c.lineTo(px, py) : c.moveTo(px, py); }); c.stroke(); c.setLineDash([]);
     c.fillStyle = ink; track.forEach(x => { const [px, py] = XY(x.lat, x.lon); c.beginPath(); c.arc(px, py, 1.8, 0, 7); c.fill(); }); c.globalAlpha = 1;
   }
+  // Route prévue au moment de poser les bouées : on y compare la trace réelle.
+  const planCol = theme === 'night' ? '#6CC3F0' : '#1F6FA8';
+  const plan = racing() && START !== OUESSANT ? posedTrace() : null;
+  if (plan && plan.length > 1) {
+    c.strokeStyle = planCol; c.globalAlpha = 0.85; c.lineWidth = 2; c.beginPath();
+    plan.forEach((q, i) => { const [x, y] = XY(q[1], uw(q[2])); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.stroke(); c.globalAlpha = 1;
+  }
   // 7. Route, colorée par bord, avec un liseré pour rester lisible sur le fond
   if (showRoute) {
     c.lineJoin = 'round'; c.lineCap = 'round';
@@ -2301,6 +2331,19 @@ function drawMap() {
   if (showRoute && START !== OUESSANT) boat(sx, sy, r.steps[0].hdg, col('--accent'), 10);
   else { c.fillStyle = col('--accent'); c.strokeStyle = halo; c.lineWidth = 2; c.beginPath(); c.arc(sx, sy, 6, 0, 7); c.stroke(); c.fill(); }
   if (showRoute) { const b = boatAt(r, t); if (b && Math.abs(t - r.depT) > 0.4) { const [x, y] = XY(b.lat, b.lon); boat(x, y, b.s.hdg, ink, 11); } }
+  // Où le bateau devrait être sur la route de ses bouées, à l'heure de la position saisie
+  if (plan && plan.length > 1) {
+    const at = state.posAt || Date.now(), pc = posedCmp();
+    let g = null;
+    for (let i = 0; i < plan.length - 1; i++) if (at >= plan[i][0] && at <= plan[i + 1][0]) { const f = (at - plan[i][0]) / (plan[i + 1][0] - plan[i][0] || 1); g = [plan[i][1] + (plan[i + 1][1] - plan[i][1]) * f, uw(plan[i][2]) + (uw(plan[i + 1][2]) - uw(plan[i][2])) * f]; }
+    if (g && pc) {
+      const [gx, gy] = XY(g[0], g[1]), gap = hav(START.lat, START.lon, g[0], g[1]);
+      if (Math.hypot(gx - sx, gy - sy) > 8) { c.strokeStyle = planCol; c.lineWidth = 1.5; c.setLineDash([4, 3]); c.beginPath(); c.moveTo(gx, gy); c.lineTo(sx, sy); c.stroke(); c.setLineDash([]); }
+      c.fillStyle = col('--surface'); c.strokeStyle = planCol; c.lineWidth = 2.5; c.beginPath(); c.arc(gx, gy, 6, 0, 7); c.fill(); c.stroke();
+      const a = Math.abs(pc.lead);
+      mapHits.push({ x: gx, y: gy, r: 14, text: 'Position prévue par la route de tes bouées à ' + hourFmt.format(new Date(at)) + ', à ' + Math.round(gap) + ' Mn de ton bateau. ' + (a < 0.5 ? 'Tu es à l\'heure' : 'Tu as ' + fmtDur(a) + (pc.lead > 0 ? ' d\'avance' : ' de retard')) + (pc.off >= 2 ? ', à ' + Math.round(pc.off) + ' Mn ' + (pc.left ? 'à gauche' : 'à droite') + ' de la route prévue.' : ', sur la route prévue.') });
+    }
+  }
   // 11. Point touché
   if (tapped) {
     const [x, y] = XY(tapped.lat, tapped.lon); c.lineWidth = 4; c.strokeStyle = halo;
@@ -2381,7 +2424,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '33';
+const VERSION = '34';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -2660,6 +2703,7 @@ function renderRefs(pc) {
 
 /* ---------- Tableau de course ---------- */
 function updateDash() {
+  updateRunNote();
   const ms = raceMs(), big = $('#dChrono'), sub = $('#dChronoSub');
   if (!racing()) { big.textContent = 'À quai'; sub.textContent = 'Le chrono s\'affiche quand tu choisis « Ma position en course ».'; }
   else if (ms === null) { big.textContent = '—'; sub.textContent = 'Indique ton heure de départ dans Réglages.'; }
