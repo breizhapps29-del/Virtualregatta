@@ -2427,7 +2427,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '36';
+const VERSION = '37';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -2558,7 +2558,10 @@ async function testRestart() {
   readSettings(); const base = makeCfg(); if (!base) { say('Saisis d\'abord ta position.'); return; }
   btn.disabled = true;
   // Ma tentative : passage de l'équateur prévu (ou déjà fait, d'après le journal).
-  const R = COURSE.restart, eq = MARKS.find(m => m.id === R.mark), mine = eq ? myMarkTime(eq) : null;
+  const R = COURSE.restart, eq = MARKS.find(m => m.id === R.mark);
+  // Repère déjà passé : on compare au temps réel (saisi ou lu dans le journal), pas à une estimation sur la route en cours.
+  const real = eq ? (state.real || {})[eq.id] : null, fromLog = eq && real == null ? logCross(eq) : null;
+  const mine = !eq ? null : real != null ? { h: real, kind: 'temps réel' } : fromLog != null ? { h: fromLog, kind: 'd\'après ton journal' } : myMarkTime(eq);
   let W;
   try {
     // Vent d'Ouessant à l'équateur, téléchargé à part : la route en cours n'est pas touchée.
