@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#08141D" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#E9EFF2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#08131C">
+<script>try{if(localStorage.getItem('routage-theme')==='light')document.documentElement.dataset.theme='light'}catch(e){}</script>
 <title>Routage Jules Verne</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -15,26 +15,27 @@
 /* De jour : la carte papier, encre marine sur fond bleu-gris. De nuit : le tableau d'instruments, chiffres ambre.
    Bâbord rouge et tribord vert gardent partout leur sens de feux de navigation. */
 :root{
-  --bg:#E9EFF2; --surface:#FAFCFD; --fg:#0E2233; --muted:#56697A; --line:#C9D5DC;
-  --accent:#0B5A75; --accent-fg:#FFFFFF; --digit:#0E2233;
-  --sea:#D7E6EE; --land:#CBD3C6; --coast:#8E9E8C;
-  --port:#B3312A; --stbd:#18774C; --warn:#855000; --warn-bg:#F8ECD3; --bad:#B3312A;
-  --w1:#7C93A6; --w2:#1F7FA8; --w3:#7A4FB5; --w4:#C2372C;
+  --bg:#08131C; --surface:#0F2130; --surface-2:#0B1924; --fg:#E6EEF3; --muted:#8EA6B6; --soft:#B9CCD8; --line:#1E3547;
+  --accent:#F2B441; --accent-fg:#1A1304; --digit:#F2B441; --wind:#5FD3E6;
+  --sea:#0B1E2B; --land:#1D2E38; --coast:#36505F;
+  --port:#FF7A6E; --stbd:#4FD08C; --warn:#F0B35A; --warn-bg:#2A2212; --bad:#FF8A80;
+  --ok-bg:#10301F; --ok-line:#2A6A45; --ok-fg:#7FE3AA; --chg-bg:#33240C; --chg-line:#7A5418; --chg-fg:#FFC56B;
+  --w1:#6F8799; --w2:#4FB6D8; --w3:#B79CF2; --w4:#FF8A80;
   --font-body:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;
   --font-display:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;
   --font-mono:'Barlow',system-ui,sans-serif;
-  --bar:62px;
-  color-scheme:light;
+  --bar:64px; --r:14px;
+  color-scheme:dark;
 }
-@media (prefers-color-scheme: dark){
-  :root{
-    --bg:#08141D; --surface:#0F2230; --fg:#E4ECF1; --muted:#8FA5B5; --line:#213646;
-    --accent:#F2B441; --accent-fg:#1A1304; --digit:#F2B441;
-    --sea:#0B1E2B; --land:#1D2E38; --coast:#36505F;
-    --port:#FF857A; --stbd:#4FD08C; --warn:#F0B35A; --warn-bg:#2A2212; --bad:#FF857A;
-    --w1:#6F8799; --w2:#4FB6D8; --w3:#B79CF2; --w4:#FF8A80;
-    color-scheme:dark;
-  }
+/* Thème de jour, au choix dans Réglages : encre marine sur fond bleu-gris, pour le plein soleil. */
+:root[data-theme="light"]{
+  --bg:#E9EFF2; --surface:#FAFCFD; --surface-2:#F1F5F7; --fg:#0E2233; --muted:#56697A; --soft:#33495B; --line:#C9D5DC;
+  --accent:#0B5A75; --accent-fg:#FFFFFF; --digit:#0E2233; --wind:#0B6E86;
+  --sea:#D7E6EE; --land:#CBD3C6; --coast:#8E9E8C;
+  --port:#B3312A; --stbd:#18774C; --warn:#855000; --warn-bg:#F8ECD3; --bad:#B3312A;
+  --ok-bg:#E3F2E9; --ok-line:#9CCBAF; --ok-fg:#15633F; --chg-bg:#F8ECD3; --chg-line:#E2C58C; --chg-fg:#7A4A00;
+  --w1:#7C93A6; --w2:#1F7FA8; --w3:#7A4FB5; --w4:#C2372C;
+  color-scheme:light;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -54,7 +55,7 @@ body{
 h2{font-family:var(--font-display);font-weight:600;font-size:1.3rem;line-height:1.15;margin:0;text-wrap:balance}
 p{margin:0}
 .block{display:flex;flex-direction:column;gap:12px;min-width:0}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
 .hint{color:var(--muted);font-size:.92rem;max-width:62ch}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 .two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -84,7 +85,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .empty{padding:22px 16px;border:1px dashed var(--line);border-radius:6px;color:var(--muted);display:flex;flex-direction:column;gap:12px;align-items:flex-start}
 
 /* Tableau d'instruments : le chrono en grand, deux répétiteurs dessous. Filets, pas de cartes. */
-.instr{border:1px solid var(--line);border-radius:6px;background:var(--surface);overflow:hidden}
+.instr{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
 .instr .cell{padding:12px 14px;min-width:0}
 .instr .lab{font-size:.84rem;color:var(--muted);font-weight:500}
 .instr .val{font-family:var(--font-display);font-weight:700;line-height:1;color:var(--digit);overflow-wrap:anywhere}
@@ -206,6 +207,39 @@ details > * + *{margin-top:12px}
 .reft .past{color:var(--muted)}
 .reft small{display:block;color:var(--muted);font-size:.8rem;font-weight:400}
 
+/* Passerelle : tableau d'instruments de l'onglet Course */
+.bridge{display:flex;flex-direction:column;gap:12px}
+.bhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.blab{font-size:.8rem;color:var(--muted)}
+.bchrono{font-family:var(--font-display);font-weight:700;font-size:clamp(2rem,10.5vw,3rem);line-height:1;letter-spacing:.02em;color:var(--fg);white-space:nowrap}
+.bhead > div:first-child{min-width:0}.bfc{text-align:right;flex:none}.bnext{font-family:var(--font-display);font-weight:600;font-size:1.15rem;color:var(--accent);white-space:nowrap}
+.binst{display:grid;grid-template-columns:minmax(130px,172px) minmax(0,1fr);gap:12px;align-items:center;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.binst svg{width:100%;height:auto;display:block}
+.bvals{display:flex;flex-direction:column;gap:10px;min-width:0}
+.bbig{font-family:var(--font-display);font-weight:700;font-size:2.8rem;line-height:1;color:var(--digit)}
+.bmid{font-family:var(--font-display);font-weight:600;font-size:1.7rem;line-height:1}
+.bbig small,.bmid small{font-size:.95rem;color:var(--muted);font-weight:500}
+.bbar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:5px}.bbar i{display:block;height:100%;width:0;border-radius:4px;background:var(--stbd)}
+.bbar.thin{height:6px;margin-top:0}
+.verdict{display:flex;gap:12px;align-items:center;padding:14px 16px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line)}
+.verdict svg{width:28px;height:28px;flex:none;fill:none;stroke:var(--muted);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.verdict .vt{font-family:var(--font-display);font-weight:700;font-size:1.5rem;line-height:1.1}
+.verdict .vs{font-size:.86rem;color:var(--soft);margin-top:2px}
+.verdict.ok{background:var(--ok-bg);border-color:var(--ok-line)}.verdict.ok svg{stroke:var(--stbd)}.verdict.ok .vt{color:var(--ok-fg)}
+.verdict.chg{background:var(--chg-bg);border-color:var(--chg-line)}.verdict.chg svg{stroke:var(--accent)}.verdict.chg .vt{color:var(--chg-fg)}
+.bcards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.bcard{padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.bcv{font-family:var(--font-display);font-weight:700;font-size:1.6rem;line-height:1.1;color:var(--fg);overflow-wrap:anywhere}
+.bcv.late{color:var(--bad)}
+.bcs{font-size:.84rem;color:var(--soft)}
+.brows{gap:8px}.brow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:.88rem;color:var(--soft)}
+.brow b{font-family:var(--font-display);font-size:1.4rem;font-weight:700;color:var(--bad);white-space:nowrap}
+.brow b.ahead{color:var(--stbd)}.brow b.mid{color:var(--accent)}
+/* Gros bouton « Faire le point », au-dessus des onglets, sur l'onglet Course */
+.fab{position:fixed;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(var(--bar) + env(safe-area-inset-bottom,0px) + 10px);z-index:19;max-width:688px;margin:0 auto;
+  height:56px;border:0;border-radius:var(--r);background:var(--accent);color:var(--accent-fg);font-family:var(--font-display);font-weight:700;font-size:1.3rem;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+body.oncourse{padding-bottom:calc(var(--bar) + env(safe-area-inset-bottom,0px) + 86px)}
 /* Barre d'onglets, fixée en bas comme dans une appli */
 .tabs{
   position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:repeat(4,1fr);
@@ -236,35 +270,56 @@ details > * + *{margin-top:12px}
 
   <!-- ===================== Course ===================== -->
   <section class="tab" id="tab-course">
-    <div class="instr" aria-label="Tableau de course">
-      <div class="cell hero">
-        <div class="lab">Temps de course</div>
-        <div class="val" id="dChrono">—</div>
-        <div class="sub" id="dChronoSub"></div>
-      </div>
-      <div class="pair">
-        <div class="cell">
-          <div class="lab" id="dPlanLab">Sur le plan</div>
-          <div class="val" id="dPlan">—</div>
-          <div class="sub" id="dPlanSub"></div>
+    <div class="bridge" aria-label="Tableau de course">
+      <div class="bhead">
+        <div>
+          <div class="blab" id="dChronoLab">Temps de course</div>
+          <div class="bchrono" id="dChrono">—</div>
+          <div class="blab" id="dChronoSub"></div>
         </div>
-        <div class="cell">
-          <div class="lab">Bouées posées</div>
-          <div class="val" id="dFlags">—</div>
-          <div class="sub" id="dFlagsSub"></div>
+        <div class="bfc">
+          <div class="blab">Prévision du jeu</div>
+          <div class="bnext" id="dRun">—</div>
         </div>
       </div>
-      <div class="pair">
-        <div class="cell">
-          <div class="lab">Sur le record</div>
-          <div class="val" id="dRec">—</div>
-          <div class="sub" id="dRecSub"></div>
+
+      <div class="binst">
+        <svg id="dial" viewBox="0 0 172 172" role="img" aria-label="Angle du vent">
+          <circle cx="86" cy="86" r="78" fill="none" stroke="var(--line)" stroke-width="2"></circle>
+          <path d="M86 8 A78 78 0 0 0 13 113" fill="none" stroke="var(--port)" stroke-width="5" stroke-linecap="round" opacity=".85"></path>
+          <path d="M86 8 A78 78 0 0 1 159 113" fill="none" stroke="var(--stbd)" stroke-width="5" stroke-linecap="round" opacity=".85"></path>
+          <g stroke="var(--muted)" stroke-width="2" opacity=".6"><line x1="86" y1="14" x2="86" y2="24"></line><line x1="158" y1="86" x2="148" y2="86"></line><line x1="86" y1="158" x2="86" y2="148"></line><line x1="14" y1="86" x2="24" y2="86"></line></g>
+          <path d="M86 46 C96 62 98 96 94 122 L78 122 C74 96 76 62 86 46 Z" fill="var(--fg)"></path>
+          <g id="dialArrow" transform="rotate(0 86 86)"><line x1="86" y1="18" x2="86" y2="42" stroke="var(--wind)" stroke-width="4" stroke-linecap="round"></line><path d="M86 46 L79 34 L93 34 Z" fill="var(--wind)"></path></g>
+          <text id="dialTxt" x="86" y="146" text-anchor="middle" font-family="'Barlow Condensed','Arial Narrow',sans-serif" font-weight="700" font-size="22" fill="var(--wind)">—</text>
+        </svg>
+        <div class="bvals">
+          <div><div class="blab">Bateau</div><div class="bbig"><span id="dBs">—</span><small> nds</small></div></div>
+          <div><div class="blab">Vent</div><div class="bmid"><span id="dTws">—</span><small id="dTwd"></small></div></div>
+          <div><div class="blab" id="dEnLab">Énergie</div><div class="bbar"><i id="dEnBar"></i></div></div>
+          <div class="blab" id="dInstSrc"></div>
         </div>
-        <div class="cell">
-          <div class="lab">Sur la moyenne</div>
-          <div class="val" id="dAvg">—</div>
-          <div class="sub" id="dAvgSub"></div>
-        </div>
+      </div>
+
+      <div class="verdict" id="dVerdict"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="dVerdictIco" d="M4 12.5l5 5L20 6.5"></path></svg><div><div class="vt" id="dVerdictT">Pas encore de route</div><div class="vs" id="dVerdictS">Fais le point avec une capture du jeu.</div></div></div>
+
+      <div class="bcards">
+        <div class="bcard"><div class="blab">Prochaine manœuvre</div><div class="bcv" id="dMan">—</div><div class="bcs" id="dManSub"></div></div>
+        <div class="bcard"><div class="blab" id="dMarkLab">Prochain repère</div><div class="bcv" id="dMark">—</div><div class="bcs" id="dMarkSub"></div></div>
+      </div>
+
+      <div class="bcard brows">
+        <div class="brow"><span id="dRecLab">Sur le record</span><b id="dRec">—</b></div>
+        <div class="bbar thin"><i id="dRecBar"></i></div>
+        <div class="bcs" id="dRecSub"></div>
+        <div class="brow"><span id="dAvgLab">Sur la moyenne des records</span><b id="dAvg">—</b></div>
+        <div class="bbar thin"><i id="dAvgBar"></i></div>
+        <div class="bcs" id="dAvgSub"></div>
+      </div>
+
+      <div class="bcards">
+        <div class="bcard"><div class="blab" id="dPlanLab">Sur le plan</div><div class="bcv" id="dPlan">—</div><div class="bcs" id="dPlanSub"></div></div>
+        <div class="bcard"><div class="blab">Bouées posées</div><div class="bcv" id="dFlags">—</div><div class="bcs" id="dFlagsSub"></div></div>
       </div>
     </div>
 
@@ -523,6 +578,10 @@ details > * + *{margin-top:12px}
           <label class="f manual"><span>Perte par changement de voile (min)</span><input id="sailPen" inputmode="decimal"></label>
         </div>
         <p class="hint" id="penHint"></p>
+        <fieldset class="opts">
+          <legend>Affichage</legend>
+          <label class="chk"><input type="checkbox" id="lightTheme"> Thème de jour (clair), pour le plein soleil</label>
+        </fieldset>
         <fieldset class="opts" id="boatOpts">
           <legend>Options de ton bateau dans le jeu</legend>
           <label class="chk"><input type="checkbox" data-opt="foil"> Foils</label>
@@ -563,6 +622,7 @@ details > * + *{margin-top:12px}
   </section>
 </div>
 
+<button type="button" class="fab" id="fab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>Faire le point avec une capture</button>
 <nav class="tabs" aria-label="Sections">
   <button type="button" data-tab="course"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V9.5M9.5 3h5M12 3v3"/></svg>Course</button>
   <button type="button" data-tab="carte"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5zM9 4v13.5M15 6.5V20"/></svg>Carte</button>
@@ -1422,6 +1482,13 @@ function updateStart() {
     : 'L\'outil compare plusieurs heures de départ depuis la ligne.';
 }
 // Options du bateau : elles décident des voiles disponibles et des bonus de vitesse.
+try { $('#lightTheme').checked = document.documentElement.dataset.theme === 'light'; } catch (e) {}
+$('#lightTheme').addEventListener('change', () => {
+  const on = $('#lightTheme').checked; if (on) document.documentElement.dataset.theme = 'light'; else delete document.documentElement.dataset.theme;
+  try { localStorage.setItem('routage-theme', on ? 'light' : 'dark'); } catch (e) {}
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = on ? '#E9EFF2' : '#08131C';
+  drawMap();
+});
 function applyBoat() {
   const o = Object.assign({ foil: true, hull: true, light: false, heavy: false, reach: false }, state.boat || {});
   setBoatOptions(o);
@@ -1631,6 +1698,7 @@ $('#shotFile').addEventListener('change', async ev => {
     if (!done.length) { msg.classList.add('err'); msg.textContent = 'Rien de lisible sur cette capture. Prends la vue 3D ou la carte en entier, sans recadrer.'; return; }
     if (got.spd) showSpeed();
     const readTxt = 'Lu à ' + hourFmt.format(new Date(at)) + ' : ' + done.join(', ') + '.' + (got.spd ? ' Relevé de vitesse ajouté au calage (' + state.spd.filter(e => !e.out).length + ' en tout, coefficient ' + state.coef.replace('.', ',') + ').' : '');
+    state.inst = { at, bs: got.bs, tws: got.wTws != null ? got.wTws : got.tws, twd: got.twd, twa: got.twa, energy: got.energy }; saveState(); updateDash();
     const go = got.pos && $('#shotGo').checked;
     say(readTxt + (go ? ' Mise à jour de la route…' : ' Vérifie avec le jeu avant de calculer.') + (got.pos ? '' : ' Pas de position : ajoute une capture de la vue 3D.') + (got.twd == null && got.tws != null ? ' Pour la direction du vent, ajoute une capture de la carte.' : ''));
     if (go) {
@@ -2804,7 +2872,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '42';
+const VERSION = '43';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -2812,9 +2880,12 @@ function showTab(name, push) {
   document.querySelectorAll('.tabs button').forEach(b => { if (b.dataset.tab === name) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   if (push !== false && location.hash !== '#' + name) { try { history.replaceState(null, '', '#' + name); } catch (e) {} }
   if (name === 'carte') drawMap();
+  $('#fab').hidden = name !== 'course' || !racing(); document.body.classList.toggle('oncourse', !$('#fab').hidden);
   window.scrollTo(0, 0);
 }
 document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+$('#fab').addEventListener('click', () => $('#shotFile').click());
+$('#mode').addEventListener('change', () => { $('#fab').hidden = !racing() || $('#tab-course').hidden; document.body.classList.toggle('oncourse', !$('#fab').hidden); });
 window.addEventListener('hashchange', () => showTab(location.hash.slice(1), false));
 
 /* ---------- Bouées posées dans le jeu ---------- */
@@ -3094,6 +3165,60 @@ function renderRefs(pc) {
 }
 
 /* ---------- Tableau de course ---------- */
+// Tableau Passerelle : instruments (dernière capture lue, sinon la route), verdict, prochaine manœuvre, prochain repère, retards.
+function updateBridge(pc) {
+  const ms = raceMs(), now = Date.now(), r = results[selected] && results[selected].ok ? results[selected] : null;
+  if (racing() && ms !== null && ms <= now) $('#dChronoLab').textContent = 'Jour ' + (Math.floor((now - ms) / 86400e3) + 1) + ' de ta tentative';
+  else $('#dChronoLab').textContent = 'Temps de course';
+  const nx = lastSwitch() + 6 * 3600e3, rn = $('#dRun');
+  rn.textContent = grid && windBehind() ? 'nouvelle, recalcule' : 'suivante à ' + hourFmt.format(new Date(nx));
+  rn.style.color = grid && windBehind() ? 'var(--bad)' : '';
+  // Instruments
+  let I = state.inst && now - state.inst.at < 12 * 3600e3 ? state.inst : null, src = '';
+  if (I) src = 'Lu sur ta capture de ' + hourFmt.format(new Date(I.at));
+  else if (r) {
+    const S = r.steps.find(x => x.t1 == null || atT(x.t1).getTime() > now) || r.steps[0];
+    if (S) { I = { bs: S.bs, tws: S.tws, twd: S.twd, twa: { deg: Math.round(Math.abs(S.twa)), side: S.twa > 0 ? 'bâbord' : 'tribord' }, energy: S.en != null ? Math.round(S.en * 100) : null }; src = 'Prévu par la route, faute de capture récente'; }
+  }
+  const f1 = v => v == null || isNaN(v) ? '—' : (+v).toFixed(1).replace('.', ',');
+  $('#dBs').textContent = I ? f1(I.bs) : '—';
+  $('#dTws').textContent = I ? f1(I.tws) : '—';
+  $('#dTwd').textContent = I && I.twd != null ? ' nds du ' + Math.round(I.twd) + '°' : I ? ' nds' : '';
+  const en = I && I.energy != null ? I.energy : num(state.energy);
+  $('#dEnLab').textContent = 'Énergie ' + (isNaN(en) ? '—' : Math.round(en) + ' %');
+  const eb = $('#dEnBar'); eb.style.width = (isNaN(en) ? 0 : Math.max(0, Math.min(100, en))) + '%'; eb.style.background = en < 40 ? 'var(--bad)' : en < 70 ? 'var(--accent)' : 'var(--stbd)';
+  $('#dInstSrc').textContent = src;
+  const tw = I && I.twa ? I.twa : null;
+  $('#dialArrow').setAttribute('transform', 'rotate(' + (tw ? (tw.side === 'bâbord' ? -1 : 1) * tw.deg : 0) + ' 86 86)');
+  $('#dialArrow').style.opacity = tw ? 1 : 0.25;
+  $('#dialTxt').textContent = tw ? tw.deg + '° ' + (tw.side === 'bâbord' ? 'bâb.' : 'trib.') : '—';
+  $('#dial').setAttribute('aria-label', tw ? 'Vent à ' + tw.deg + ' degrés ' + tw.side : 'Angle du vent inconnu');
+  // Verdict
+  const V = $('#dVerdict'), vt = $('#dVerdictT'), vs = $('#dVerdictS'), ico = $('#dVerdictIco'), eta = posedEta();
+  V.classList.remove('ok', 'chg');
+  if (!r) { vt.textContent = 'Pas encore de route'; vs.textContent = 'Fais le point avec une capture du jeu.'; ico.setAttribute('d', 'M12 7v6M12 16.5v.5'); }
+  else if (r.change) { V.classList.add('chg'); vt.textContent = 'Change tes bouées'; const fs = document.querySelector('#flags .flagsum'); vs.textContent = fmtDur(r.change.gain) + ' de gagné. ' + (fs ? fs.textContent : 'La liste est dans l\'onglet Route.'); ico.setAttribute('d', 'M4 12h14M13 6l6 6-6 6'); }
+  else if (r.keep || r.posedNow) { V.classList.add('ok'); vt.textContent = r.keep ? 'Garde tes bouées' : 'Bouées à jour'; vs.textContent = eta ? 'Elles tiennent jusqu\'à ' + clockFmt.format(new Date(eta)) + '.' : 'Rien à changer dans le jeu.'; ico.setAttribute('d', 'M4 12.5l5 5L20 6.5'); }
+  else { vt.textContent = 'Route à jour'; vs.textContent = 'Pose les bouées de l\'onglet Route, puis touche « J\'ai posé ces bouées ».'; ico.setAttribute('d', 'M6 21V4M6 4h11l-3 4 3 4H6'); }
+  // Prochaine manœuvre
+  let man = null;
+  if (r && r.view) for (let i = 1; i < r.view.length; i++) { const L = r.view[i], P = r.view[i - 1]; if (atT(L.t0).getTime() <= now) continue; const tk = Math.sign(P.twaAvg) !== Math.sign(L.twaAvg), sl = P.sail !== L.sail; if (tk || sl) { man = { L, tk, sl }; break; } }
+  if (man) {
+    { const hh = (atT(man.L.t0).getTime() - now) / 3600e3; $('#dMan').textContent = 'dans ' + (hh >= 24 ? fmtDays(hh) : fmtDur(hh)); }
+    $('#dManSub').textContent = (man.tk ? (Math.abs(man.L.twaAvg) < 90 ? 'Virement' : 'Empannage') + ', cap ' + Math.round(man.L.hdg) + '°' : 'Passe au ' + man.L.sail) + (man.tk && man.sl ? ', ' + man.L.sail : '') + ' à ' + hourFmt.format(atT(man.L.t0));
+  } else { $('#dMan').textContent = '—'; $('#dManSub').textContent = r ? 'Aucune sur la route calculée.' : ''; }
+  // Prochain repère
+  const m = pc && pc.leg >= 0 ? MARKS[pc.leg] : null, sp = m ? (state.splits || {})[m.id] : null;
+  $('#dMarkLab').textContent = m ? m.name : 'Prochain repère';
+  $('#dMark').textContent = m && sp != null ? fmtJH(sp) : '—';
+  $('#dMarkSub').textContent = m ? (sp != null ? 'prévu, record ' + fmtJH(m.rec) : 'record ' + fmtJH(m.rec)) : '';
+  // Barres de retard (pleine barre = 5 jours)
+  const bar = (id, bid, v) => { const b = $('#' + id); b.classList.remove('ahead', 'mid'); if (!pc) return; if (v < 0) b.classList.add('ahead'); else if (id === 'dAvg') b.classList.add('mid'); $('#' + bid).style.width = Math.min(100, Math.abs(v) / 120 * 100) + '%'; $('#' + bid).style.background = v < 0 ? 'var(--stbd)' : id === 'dAvg' ? 'var(--accent)' : 'var(--port)'; };
+  bar('dRec', 'dRecBar', pc ? pc.rec : 0); bar('dAvg', 'dAvgBar', pc ? pc.avg : 0);
+  const lab = (id, v, who) => { $('#' + id).textContent = !pc ? 'Sur ' + who : Math.abs(v) < 0.5 ? 'Au rythme ' + (who === 'le record' ? 'du record' : 'de la moyenne') : (v > 0 ? 'Retard sur ' : 'Avance sur ') + who; };
+  lab('dRecLab', pc ? pc.rec : 0, 'le record'); lab('dAvgLab', pc ? pc.avg : 0, 'la moyenne');
+  if (pc) { const at = 'à ta position de ' + hourFmt.format(new Date(pc.at)); $('#dRecSub').textContent = 'Sodebo Ultim 3, ' + at; $('#dAvgSub').textContent = 'les 4 records précédents, ' + at; }
+}
 function updateDash() {
   updateRunNote();
   const ms = raceMs(), big = $('#dChrono'), sub = $('#dChronoSub');
@@ -3127,6 +3252,7 @@ function updateDash() {
   pace($('#dRec'), $('#dRecSub'), pc ? pc.rec : 0, 'Sodebo Ultim 3');
   pace($('#dAvg'), $('#dAvgSub'), pc ? pc.avg : 0, 'la moyenne des records précédents');
   renderRefs(pc);
+  updateBridge(pc);
   const fl = $('#dFlags'), fls = $('#dFlagsSub'), eta = posedEta(); fl.classList.remove('late');
   if (!eta) { fl.textContent = '—'; fls.textContent = 'Aucune bouée enregistrée.'; }
   else {
