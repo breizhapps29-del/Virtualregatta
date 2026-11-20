@@ -1602,6 +1602,12 @@ $('#shotFile').addEventListener('change', async ev => {
     const got = {}; let at = 0;
     for (const f of files) {
       const r = await readShot(f, say);
+      // Vitesse du bateau contrôlée par la polaire : un premier chiffre manqué (« 4,2 » pour « 34,2 ») est rattrapé,
+      // une valeur impossible est ignorée plutôt qu'affichée.
+      if (r.twa && r.tws != null && r.bs != null) {
+        const p = polarSpeed(r.twa.deg, r.tws), ok = v => p > 1 && Math.abs(v / p - 1) <= 0.15;
+        if (!ok(r.bs)) { const fix = r.bs < 10 ? [10, 20, 30, 40].map(d => r.bs + d).filter(ok).sort((x, y) => Math.abs(x - p) - Math.abs(y - p))[0] : null; r.bs = fix != null ? +fix.toFixed(1) : null; }
+      }
       for (const k of ['pos', 'twa', 'tws', 'bs', 'hdg', 'energy']) if (r[k] != null && got[k] == null) got[k] = r[k];
       if (r.twa && r.tws != null && r.bs != null && !addSpeed(r.tws, r.twa.deg, r.bs, f.lastModified > Date.now() - 36 * 3600e3 ? f.lastModified : Date.now(), 'capture')) got.spd = (got.spd || 0) + 1;
       if (r.twd != null && r.tws != null && got.twd == null) { got.twd = r.twd; got.wTws = r.tws; }   // direction et force lues sur la même capture
@@ -2798,7 +2804,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '41';
+const VERSION = '42';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
