@@ -1192,8 +1192,25 @@ async function getOcr(say) {
   return ocrWorker;
 }
 // Texte clair sur fond sombre : on passe en niveaux de gris inversés et contrastés, ce que le lecteur lit le mieux.
+// Décodage de la capture : certains téléphones refusent createImageBitmap, on passe alors par une image classique.
+const shotCache = new WeakMap();
+async function decodeShot(file) {
+  if (shotCache.has(file)) return shotCache.get(file);
+  let img = null;
+  try { img = await createImageBitmap(file); } catch (e) {}
+  if (!img) {
+    const url = URL.createObjectURL(file);
+    try {
+      img = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ko(new Error('format')); i.src = url; });
+    } catch (e) {
+      throw new Error(/hei[cf]/i.test(file.type + file.name) ? 'capture au format HEIC, illisible par le navigateur' : 'image illisible' + (file.type ? ' (' + file.type + ')' : ''));
+    }
+  }
+  const r = { img, W: img.naturalWidth || img.width, H: img.naturalHeight || img.height };
+  shotCache.set(file, r); return r;
+}
 async function prepShot(file, box) {
-  const img = await createImageBitmap(file), W = img.width, H = img.height;
+  const { img, W, H } = await decodeShot(file);
   const sx = Math.round(box[0] * W), sy = Math.round(box[1] * H), sw = Math.round(box[2] * W), sh = Math.round(box[3] * H);
   const k = Math.min(2, 2600 / sw), cv = document.createElement('canvas'); cv.width = Math.round(sw * k); cv.height = Math.round(sh * k);
   const c = cv.getContext('2d'); c.drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
@@ -1302,7 +1319,7 @@ $('#shotFile').addEventListener('change', async ev => {
     if (!done.length) { msg.classList.add('err'); msg.textContent = 'Rien de lisible sur cette capture. Prends la vue 3D ou la carte en entier, sans recadrer.'; return; }
     say('Lu à ' + hourFmt.format(new Date(at)) + ' : ' + done.join(', ') + '. Vérifie avec le jeu avant de calculer.' + (got.pos ? '' : ' Pas de position : ajoute une capture de la vue 3D.') + (got.twd == null && got.tws != null ? ' Pour la direction du vent, ajoute une capture de la carte.' : ''));
   } catch (e) {
-    msg.classList.add('err'); msg.textContent = 'Lecture impossible (' + e.message + '). Il faut du réseau la première fois pour charger le lecteur.';
+    msg.classList.add('err'); msg.textContent = /chargement|fetch|network|load/i.test(e.message) ? 'Le lecteur de texte n\'a pas pu se charger : il faut du réseau la première fois.' : 'Lecture impossible : ' + e.message + '. Choisis la capture depuis « Fichiers » ou la Galerie plutôt que Google Photos, et envoie-la-moi si ça persiste.';
   } finally { btn.disabled = false; }
 });
 
@@ -2310,7 +2327,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '31';
+const VERSION = '32';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
