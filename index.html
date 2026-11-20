@@ -79,6 +79,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .spdtab{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:6px}.spdtab th,.spdtab td{text-align:right;padding:4px 6px;border-bottom:1px solid var(--line)}.spdtab th:first-child,.spdtab td:first-child{text-align:left}.spdtab tr.out td{color:var(--muted);text-decoration:line-through}
 .status.alert{padding:10px 12px;border-radius:6px;background:var(--warn-bg);color:var(--warn);font-weight:600}
 .chk{display:flex;gap:8px;align-items:center;font-size:.95rem}.chk input{width:20px;height:20px}
+.opts{border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin:0 0 12px;display:grid;gap:8px}.opts legend{padding:0 4px;font-weight:600}
 .shotrow{display:grid;gap:4px;margin-bottom:6px}.shotrow button{justify-self:start}.shotrow .hint{margin:0}
 .empty{padding:22px 16px;border:1px dashed var(--line);border-radius:6px;color:var(--muted);display:flex;flex-direction:column;gap:12px;align-items:flex-start}
 
@@ -522,6 +523,15 @@ details > * + *{margin-top:12px}
           <label class="f manual"><span>Perte par changement de voile (min)</span><input id="sailPen" inputmode="decimal"></label>
         </div>
         <p class="hint" id="penHint"></p>
+        <fieldset class="opts" id="boatOpts">
+          <legend>Options de ton bateau dans le jeu</legend>
+          <label class="chk"><input type="checkbox" data-opt="foil"> Foils</label>
+          <label class="chk"><input type="checkbox" data-opt="hull"> Polish de coque</label>
+          <label class="chk"><input type="checkbox" data-opt="light"> Voiles petit temps (génois léger, spi léger)</label>
+          <label class="chk"><input type="checkbox" data-opt="heavy"> Voiles de brise (trinquette, spi lourd)</label>
+          <label class="chk"><input type="checkbox" data-opt="reach"> Voile reaching (Code 0)</label>
+          <p class="hint" id="boatHint"></p>
+        </fieldset>
         <div class="two">
           <label class="f"><span>Coefficient de polaire</span><input id="coef" inputmode="decimal"></label>
         </div>
@@ -583,9 +593,8 @@ function dest(lat, lon, brg, nm) {
 function angDiff(a, b) { return ((a - b + 540) % 360) - 180; }
 
 // Polaire officielle de l'Ultim BP XI dans le jeu (format du jeu, _id 21, mise à jour du 2 juillet 2024), voile par voile.
-// Ton bateau a le foc (Jib) et le spi, avec les options foils et polish de coque : c'est exactement la polaire « foils + polish »
-// relevée par ITYC (écart maximal 0,005 nd), et elle donne les vitesses du jeu au centième sur tes captures.
-// Lignes : angle au vent, colonnes : force du vent.
+// Avec foc + spi, foils et polish de coque, elle redonne la polaire « foils + polish » d'ITYC (écart maximal 0,005 nd) ;
+// avec toutes les voiles, le « full pack ». Lignes : angle au vent, colonnes : force du vent.
 const POL_TWS = [0, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 40, 50, 60, 70];
 const POL_TWA = [0, 10, 20, 30, 40, 45, 50, 53, 56, 59, 60, 62, 65, 70, 80, 90, 100, 110, 120, 125, 130, 135, 140, 145, 150, 155, 160, 170, 180];
 const POL_SAILS = {
@@ -650,53 +659,221 @@ const POL_SAILS = {
     [0,3.8,2.77,5.42,8.17,10.45,14.25,15.2,16.91,19,19.95,20.9,21.85,22.8,8.26,5.14,2.39,0],
     [0,2.47,2.36,3.8,5.7,5.7,9.5,9.5,10.45,11.4,11.4,12.35,13.3,14.25,5.79,3.61,1.67,0],
     [0,1.74,2,2.84,4.15,2.85,6.38,6.38,6.38,6.38,6.38,6.38,6.38,7.6,4.15,2.58,1.2,0]
+  ],
+  stay: [
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0.8,0.81,1.8,2,1.8,2,3.8,4,3,6,6,6,6,4,2.667,1.334,0],
+    [0,0.89,1.22,3,4,4,6,7.6,8,6,10,10,10,10,7,4.667,2.334,0],
+    [0,1.3,2.13,4.2,6,8,9.51,12.8,13,13,15,15,15,15,10.4,6.933,3.467,0],
+    [0,1.61,2.97,5,7.5,9.77,12,15.7,17,16.9,18,18,18,18,12.8,8.533,4.267,0],
+    [0,2.07,4,6.05,9.06,12.18,15.76,18.9,21.3,21.5,21.7,21.7,21.8,21.7,15.1,10.067,5.034,0],
+    [0,2.28,4.32,6.55,9.72,13.09,16.8,20.25,22.9,23.1,23.3,23.4,23.5,23.4,16.2,10.8,5.4,0],
+    [0,2.49,4.72,7.1,10.38,13.86,17.76,21.51,24.4,24.7,24.9,25,25.2,25.2,17.3,11.533,5.767,0],
+    [0,2.73,5.08,7.5,10.92,14.49,18.56,22.59,25.9,26.4,26.5,26.8,26.9,27,18.2,12.133,6.067,0],
+    [0,2.81,5.15,7.6,11.06,14.68,18.8,22.89,26.37,26.97,27.03,27.37,27.5,27.57,18.43,12.287,6.144,0],
+    [0,2.97,5.27,7.79,11.33,15.04,19.26,23.47,27.27,28.1,28.07,28.47,28.7,28.7,18.9,12.6,6.3,0],
+    [0,3.04,5.45,8,11.69,15.52,19.8,24.24,28.7,29.7,29.52,30.02,30.5,30.5,19.6,13.067,6.534,0],
+    [0,3.13,5.54,8.2,12.06,16.12,20.61,25.3,30.8,32.1,32.2,33.1,33.5,33.4,20.6,13.733,6.867,0],
+    [0,3.05,5.33,8.12,11.97,16.82,21.48,25.96,31.5,35.7,36.3,37.9,38.8,38.8,22,14.667,7.334,0],
+    [0,2.77,4.85,7.5,11.17,16.06,20.92,25.05,29.52,35,35,36,38,40,23.2,15.4,7.7,0],
+    [0,2.37,4.13,6.45,9.56,13.84,18.41,21.99,25.92,30,30,30,33,38,22.5,15.8,7.9,0],
+    [0,1.89,3.3,5.15,7.58,11.11,14.85,17.78,20.94,25,24,23,25,32,21,15.6,7.8,0],
+    [0,1.4,2.41,3.79,5.68,8.26,11.17,13.34,15.77,18,17,17.2,18,25,19,15.3,7.7,0],
+    [0,1.1,1.99,3.13,4.76,6.86,9.29,11.21,13.36,15,14.2,14.52,14.59,21,17,14,7.5,0],
+    [0,0.81,1.47,2.43,3.84,5.59,7.54,9.28,11.11,12,11.85,12.02,12.11,17,15,12,7,0],
+    [0,0.6,1.08,1.79,2.87,4.27,5.84,7.32,8.99,9.41,9.68,9.75,9.8,12,13,10,6,0],
+    [0,0.43,0.77,1.27,2.08,3.14,4.37,5.48,6.77,7.15,7.47,7.59,7.63,9,11,7.333,5,0],
+    [0,0.31,0.54,0.88,1.46,2.24,3.21,4.04,5,5.3,5.57,5.69,5.72,5.77,8.09,5.393,4,0],
+    [0,0.22,0.37,0.6,1.01,1.56,2.33,2.94,3.63,3.85,4.07,4.16,4.21,4.26,6.2,4.133,3,0],
+    [0,0.09,0.14,0.25,0.44,0.63,0.89,1.01,1.12,1.12,1.12,1.12,1.12,1.54,5,3.333,2.2,0],
+    [0,0.06,0.09,0.16,0.29,0.42,0.59,0.66,0.74,0.74,0.74,0.74,0.74,1.13,4,2.667,1.6,0],
+    [0,0.03,0.05,0.08,0.14,0.2,0.29,0.33,0.36,0.36,0.36,0.36,0.36,0.61,2.8,1.867,0.934,0],
+    [0,0.01,0.02,0.04,0.07,0.1,0.14,0.15,0.17,0.17,0.17,0.17,0.17,0.33,2,1.333,0.667,0]
+  ],
+  ljib: [
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,1,2,2.5,3,2,4,4,2,2,3,2.7,2,1,0,0,0,0],
+    [0,2,4,4.5,6,6,7.5,8,6,4,8,7,6,5,0,0,0,0],
+    [0,4,6.5,7.35,9.6,11,12.5,14,11.77,9,12,11,9.5,8,0,0,0,0],
+    [0,5.5,8,9.3,12.5,14,16,18,15.49,14,15,13,11.3,9.3,0,0,0,0],
+    [0,6.9,10,12.1,15.1,17.4,19.7,21,20.6,18,17.36,15.19,13.08,10.85,0,0,0,0],
+    [0,7.6,10.8,13.1,16.2,18.7,21,22.5,22.5,20.3,18.64,16.38,14.1,11.7,0,0,0,0],
+    [0,8.3,11.8,14.2,17.3,19.8,22.2,23.9,24,22.23,19.92,17.5,15.12,12.6,0,0,0,0],
+    [0,9.1,12.7,15,18.2,20.7,23.2,25.1,25.32,24,21.2,18.76,16.14,13.5,0,0,0,0],
+    [0,9.37,12.87,15.2,18.43,20.97,23.5,25.43,25.89,24.5,21.62,19.16,16.5,13.79,0,0,0,0],
+    [0,9.9,13.2,15.6,18.9,21.48,24.1,26.07,26.73,25.6,22.46,19.93,17.2,14.34,0,0,0,0],
+    [0,10.14,13.7,16.1,19.6,22.3,24.9,27.1,28.24,27.3,23.62,21.01,18.19,15.16,0,0,0,0],
+    [0,10.44,13.86,16.4,20.6,23.6,26.4,28.8,30.5,28.9,25.14,22.61,19.62,16.3,0,0,0,0],
+    [0,10.16,13.33,16.23,20,24.03,26.85,28.84,31,29.14,26.34,24.06,21.11,17.59,0,0,0,0],
+    [0,9.23,12.11,15,18.61,22.94,26.15,27.84,29.22,27.44,25.29,23.02,20.27,16.93,0,0,0,0],
+    [0,7.9,10.33,12.89,15.93,19.78,23.02,24.44,25.66,23.94,22.19,20.03,17.5,14.72,0,0,0,0],
+    [0,6.31,8.26,10.31,12.63,15.87,18.57,19.75,20.73,19.33,17.88,16.09,13.86,11.74,0,0,0,0],
+    [0,4.67,6.02,7.58,9.46,11.8,13.97,14.83,15.61,14.67,13.43,12.01,10.3,8.72,0,0,0,0],
+    [0,3.67,4.97,6.26,7.94,9.79,11.61,12.45,13.23,12.5,11.36,10.16,8.75,7.36,0,0,0,0],
+    [0,2.71,3.68,4.86,6.4,7.99,9.43,10.32,11,10.48,9.48,8.42,7.27,6.09,0,0,0,0],
+    [0,1.98,2.69,3.58,4.78,6.1,7.3,8.13,8.9,8.47,7.74,6.83,5.88,4.91,0,0,0,0],
+    [0,1.45,1.93,2.53,3.47,4.48,5.46,6.09,6.7,6.44,5.98,5.31,4.58,3.85,0,0,0,0],
+    [0,1.04,1.35,1.75,2.44,3.2,4.01,4.48,4.95,4.77,4.46,3.98,3.43,2.88,0,0,0,0],
+    [0,0.74,0.93,1.19,1.68,2.23,2.92,3.27,3.59,3.46,3.26,2.91,2.53,2.13,0,0,0,0],
+    [0,0.3,0.35,0.5,0.73,0.9,1.12,1.12,1.11,1.01,0.89,0.78,0.67,0.77,0,0,0,0],
+    [0,0.2,0.23,0.33,0.48,0.59,0.74,0.74,0.73,0.66,0.59,0.52,0.44,0.57,0,0,0,0],
+    [0,0.1,0.11,0.16,0.24,0.29,0.36,0.36,0.36,0.33,0.29,0.25,0.22,0.31,0,0,0,0],
+    [0,0.05,0.05,0.08,0.11,0.14,0.17,0.17,0.17,0.15,0.14,0.12,0.1,0.16,0,0,0,0]
+  ],
+  code0: [
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0.7,0.98,1.42,1.69,1,2,2,1,1,1,1,1,0.7,0,0,0,0],
+    [0,1.45,2,3.1,3.69,4,4.99,4,4,2,3,3,2,1.5,0,0,0,0],
+    [0,2.58,3.8,5.5,7,9,8.71,8.7,9,8,7,7,5,4,0,0,0,0],
+    [0,3.8,5.63,7.6,10,12,11.44,12.1,12.2,11.44,10,10,8,6,0,0,0,0],
+    [0,6.07,9.26,11.21,13.99,16.12,16,17,17,15.46,13.5,13.5,12,10,0,0,0,0],
+    [0,7.02,10.4,12.62,15.4,17.59,18,19.2,20,18,16,16,14,13,0,0,0,0],
+    [0,8.06,11.37,13.72,16.3,19,20,21.2,22,20.6,19,19,17,16.5,1,0.68,0.34,0],
+    [0,8.83,12.2,14.6,17.5,20,21.5,23.2,24.5,23.2,22,22,21,20.5,2.5,1.47,0.5,0],
+    [0,9.2,12.45,14.9,17.8,20.4,21.94,23.7,25,24.2,23,23,22.2,22,2.7,1.58,0.5,0],
+    [0,9.68,12.96,15.3,18.4,21,23,24.9,26.5,25.7,24.5,24.7,24.5,24.5,5,2.99,0.76,0],
+    [0,10.2,13.64,15.95,19.2,22,24.08,26.3,28,27.7,26.8,27,27,27,8,4.77,1.21,0],
+    [0,10.7,14.2,16.8,20.5,23.5,26.2,28.7,30.7,30.6,30,31,31,31,12,7.15,1.74,0],
+    [0,11.2,14.7,17.9,22,26.5,29.6,31.8,34.2,35.6,36.2,37.8,38.7,38.7,19,11.32,2.73,0],
+    [0,11.5,15.1,18.7,23.2,28.6,32.6,34.7,36.8,38,39.4,41,42.1,42.2,23.1,13.78,3.3,0],
+    [0,11.7,15.3,19.1,23.6,29.3,34.1,36.2,38.4,39.4,41.1,42.4,43.2,43.6,23.6,14.07,3.4,0],
+    [0,11.6,15.2,19,23.3,29.3,34.3,36.5,38.8,39.8,41.4,42.6,42.8,43.5,23.4,14.5,3.4,0],
+    [0,11.06,14.26,17.94,22.41,27.94,33.08,35.11,38.4,39.7,40.9,41.8,41.8,42.6,23.1,15,3.32,0],
+    [0,9.8,13.26,16.71,21.19,26.14,31,33.24,35.67,37.07,37.91,40,38.93,42,22.6,13.47,3,0],
+    [0,8.14,11.06,14.6,19.21,23.99,28.32,30.98,33.37,34.96,35.58,37,36.38,39,19.21,11.45,2.7,0],
+    [0,6.69,9.09,12.06,16.11,20.57,24.62,27.43,30.32,31.72,32.63,32.88,33.05,35,16.11,9.58,2.32,0],
+    [0,5.47,7.29,9.57,13.14,16.93,20.65,23.01,25.59,27.03,28.24,28.7,28.85,31,13.14,7.84,1.91,0],
+    [0,4.4,5.7,7.42,10.3,13.53,16.97,18.96,21.16,22.4,23.56,24.04,24.18,26,10.3,6.14,1.46,0],
+    [0,3.49,4.41,5.63,7.95,10.52,13.77,14,17.13,18.17,19.21,19.64,19.88,20.13,7.95,4.75,1.2,0],
+    [0,1.6,1.84,2.61,3.81,4.72,5.87,7,5.87,5.87,5.87,10,10,12,6,3.55,0.91,0],
+    [0,1.17,1.35,1.92,2.8,3.46,4.3,4.3,4.3,4.3,4.3,6,5,8,4.8,2.86,0.7,0],
+    [0,0.7,0.81,1.15,1.68,2.08,2.59,2.59,2.59,2.59,2.59,2.59,2.59,4.38,3.3,1.98,0.5,0],
+    [0,0.4,0.46,0.65,0.95,1.17,1.46,1.46,1.46,1.46,1.46,1.46,1.46,2.76,2.5,1.47,0.5,0]
+  ],
+  hgnk: [
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0.01,0.01,0.01,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.02,0.01,0.007,0.004,0],
+    [0,0.01,0.01,0.02,0.02,0.03,0.04,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.04,0.027,0.013,0],
+    [0,0.01,0.02,0.03,0.05,0.07,0.09,0.11,0.12,0.12,0.12,0.12,0.12,0.12,0.09,0.06,0.03,0],
+    [0,0.03,0.05,0.07,0.11,0.14,0.18,0.22,0.25,0.26,0.26,0.26,0.26,0.26,0.18,0.12,0.06,0],
+    [0,0.03,0.06,0.09,0.13,0.18,0.23,0.28,0.32,0.32,0.33,0.33,0.33,0.33,0.22,0.147,0.074,0],
+    [0,0.05,0.1,0.14,0.2,0.27,0.35,0.42,0.49,0.51,0.51,0.51,0.52,0.52,0.34,0.227,0.114,0],
+    [0,0.1,0.17,0.25,0.37,0.49,0.62,0.76,0.9,0.93,0.93,0.94,0.95,0.95,0.61,0.407,0.203,0],
+    [0,0.22,0.4,0.58,0.86,1.15,1.47,1.8,2.14,2.23,2.24,2.3,2.33,2.32,1.43,0.953,0.477,0],
+    [0,0.8,1.4,2.12,3.13,4.4,5.62,6.79,8.12,8.47,8.61,8.99,9.21,9.21,5.6,3.733,1.867,0],
+    [0,1.85,3.24,5.02,7.47,10.75,14,16.77,19.76,20.4,21.15,22.01,22.6,22.66,12.46,8.3,4.15,0],
+    [0,3.01,5.25,8.19,12.15,17.6,23.41,27.96,32.95,33.81,35.27,36.38,37.07,37.41,20.25,13.5,6.75,0],
+    [0,3.51,6.12,9.55,14.04,20.58,27.52,32.94,38.2,39,40,41,41.2,41.5,22.5,15,7.5,0],
+    [0,3.42,5.88,9.25,13.86,20.16,27.28,32.58,38.5,39.8,41,41.9,41.9,42,22.8,15.5,7.6,0],
+    [0,3.15,5.68,8.95,13.62,19.6,26.56,32.04,38.2,39.7,40.6,41.5,41.7,42.1,22.7,15.133,7.567,0],
+    [0,2.76,5,8.25,13.02,18.97,25.6,31.5,37.7,39.5,40.2,40.8,41.1,41.3,21.7,14.467,7.234,0],
+    [0,2.43,4.4,7.3,11.7,17.43,23.84,29.88,36.7,38.4,39.5,39.8,40,40.1,19.5,13,6.5,0],
+    [0,2.16,3.84,6.3,10.38,15.61,21.76,27.27,33.7,35.6,37.2,37.8,38,38.3,17.3,11.533,5.767,0],
+    [0,1.92,3.32,5.4,9,13.79,19.76,24.84,30.8,32.6,34.3,35,35.2,35.5,15,10,5,0],
+    [0,1.71,2.88,4.7,7.8,12.04,18,22.68,28,29.7,31.4,32.1,32.5,32.9,13,8.667,4.334,0],
+    [0,0.89,1.38,3.9,6,10,15,18.3,22,25,26,27,28,29,10.4,6.933,3.467,0],
+    [0,0.76,1.17,3.11,4.8,8,12,15,17.8,20,21,22,23,24,8.7,5.8,2.9,0],
+    [0,0.65,0.99,2,3.4,4.45,8,9.4,11,12,12,13,14,15,6.1,4.067,2.034,0],
+    [0,0.55,0.84,1.5,2.62,2,5.38,6.05,6.72,6.72,6.72,6.72,6.72,8,4.37,2.913,1.456,0]
+  ],
+  lgnk: [
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0.01,0.01,0.01,0.01,0.02,0.02,0.02,0.02,0.02,0.02,0.01,0.01,0.01,0,0,0,0],
+    [0,0.02,0.02,0.03,0.04,0.04,0.05,0.05,0.05,0.05,0.04,0.04,0.03,0.03,0,0,0,0],
+    [0,0.04,0.06,0.07,0.09,0.1,0.11,0.12,0.12,0.11,0.1,0.09,0.07,0.06,0,0,0,0],
+    [0,0.09,0.12,0.15,0.18,0.2,0.23,0.24,0.25,0.23,0.21,0.18,0.16,0.13,0,0,0,0],
+    [0,0.11,0.15,0.18,0.22,0.25,0.28,0.31,0.32,0.29,0.26,0.23,0.2,0.17,0,0,0,0],
+    [0,0.18,0.24,0.28,0.34,0.39,0.43,0.47,0.49,0.46,0.4,0.36,0.31,0.26,0,0,0,0],
+    [0,0.32,0.43,0.5,0.61,0.7,0.78,0.85,0.88,0.84,0.74,0.66,0.57,0.48,0,0,0,0],
+    [0,0.74,0.99,1.17,1.43,1.64,1.84,2,2.1,2.01,1.79,1.61,1.4,1.16,0,0,0,0],
+    [0,2.66,3.49,4.25,5.22,6.29,7.02,7.55,7.96,7.62,6.89,6.3,5.52,4.6,0,0,0,0],
+    [0,6.17,8.11,10.04,12.46,15.35,17.5,18.63,19.35,18.36,16.92,15.41,13.56,11.33,0,0,0,0],
+    [0,10.04,13.13,16.39,20.25,25.14,29.26,31.06,32.28,30.43,28.21,25.47,22.24,18.71,0,0,0,0],
+    [0,11.7,15.3,19.1,23.4,29.4,34.4,36.6,37.3,35.82,33.12,29,25.68,21.75,0,0,0,0],
+    [0,11.4,14.7,18.5,23.1,28.8,34.1,36.2,37.74,35.82,32.8,29.33,25.14,21.3,0,0,0,0],
+    [0,10.5,14.2,17.9,22.7,28,33.2,35.6,37.43,35.73,32.48,29.05,25.02,21.05,0,0,0,0],
+    [0,9.2,12.5,16.5,21.7,27.1,32,35,36.95,35.55,32.16,28.56,24.66,20.65,0,0,0,0],
+    [0,8.1,11,14.6,19.5,24.9,29.8,33.2,35.97,34.56,31.6,27.86,24,20.05,0,0,0,0],
+    [0,7.2,9.6,12.6,17.3,22.3,27.2,30.3,33.03,32.04,29.76,26.46,22.8,19.15,0,0,0,0],
+    [0,6.4,8.3,10.8,15,19.7,24.7,27.6,30.19,29.34,27.44,24.5,21.12,17.75,0,0,0,0],
+    [0,5.7,7.2,9.2,13,17.2,22.5,25.2,27.43,26.73,25.12,22.47,19.5,16,0,0,0,0],
+    [0,4.8,3.44,7,10.5,14,18.5,20,21.56,22,21.5,19,17,14,0,0,0,0],
+    [0,4,2.92,5.7,8.6,11,15,16,17.43,17,17,15,13,11,0,0,0,0],
+    [0,2.6,2.48,4,6,6,10,10,10.78,10,9,8,7,6.68,0,0,0,0],
+    [0,1.83,2.11,2.99,4.37,3,6.72,6.72,6.58,5,5.38,4.7,3,2,0,0,0,0]
   ]
 };
+// Voiles du jeu, dans son ordre (1 à 7), et option qui les débloque. Le foc et le spi sont toujours là.
+const SAIL_LIST = [
+  { k: 'jib', name: 'foc', opt: null }, { k: 'spi', name: 'spi', opt: null }, { k: 'stay', name: 'trinquette', opt: 'heavy' },
+  { k: 'ljib', name: 'génois léger', opt: 'light' }, { k: 'code0', name: 'Code 0', opt: 'reach' }, { k: 'hgnk', name: 'spi lourd', opt: 'heavy' }, { k: 'lgnk', name: 'spi léger', opt: 'light' }
+];
 const POL_FOIL = { ratio: 1.04, twaMin: 80, twaMax: 160, twaMerge: 10, twsMin: 16, twsMax: 35, twsMerge: 5 };
 const POL_HULL = 1.003;
-// Le pilote automatique de voiles du jeu ne change de voile que si l'autre va au moins 1,4 % plus vite.
+// Le pilote automatique de voiles du jeu ne change de voile que si une autre va au moins 1,4 % plus vite.
 const AUTO_SAIL_TOL = 1.014;
-// Tables denses au degré et au nœud, foils et polish compris, construites une fois pour une lecture rapide.
+// Tables denses au degré et au nœud (voiles brutes, et effet des foils), construites une fois pour une lecture rapide.
 const POL_MAXW = 70;
 const POLAR_D = (() => {
   const step = (v, S) => { let i = 0; while (i < S.length && S[i] <= v) i++; return i >= S.length ? [S.length - 1, 1] : [i, (v - S[i - 1]) / (S[i] - S[i - 1])]; };
   const bil = (x, y, a, b, c, d) => a * (1 - x) * (1 - y) + b * x * (1 - y) + c * (1 - x) * y + d * x * y;
-  const F = POL_FOIL, r = F.ratio;
+  const F = POL_FOIL, r = F.ratio, N = POL_MAXW + 1;
   const fS = [0, F.twsMin - F.twsMerge, F.twsMin, F.twsMax, F.twsMax + F.twsMerge, Infinity], fA = [0, F.twaMin - F.twaMerge, F.twaMin, F.twaMax, F.twaMax + F.twaMerge, Infinity];
   const FM = [[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1], [1, 1, r, r, 1, 1], [1, 1, r, r, 1, 1], [1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]];
-  const foil = (w, a) => { const [si, sf] = step(w, fS), [ai, af] = step(a, fA); return bil(af, sf, FM[ai - 1][si - 1], FM[ai][si - 1], FM[ai - 1][si], FM[ai][si]); };
-  const out = {};
-  for (const k of ['jib', 'spi']) {
-    const T = new Float32Array(181 * (POL_MAXW + 1)), V = POL_SAILS[k];
-    for (let a = 0; a <= 180; a++) for (let w = 0; w <= POL_MAXW; w++) {
-      const [si, sf] = step(w, POL_TWS), [ai, af] = step(a, POL_TWA);
-      T[a * (POL_MAXW + 1) + w] = bil(af, sf, V[ai - 1][si - 1], V[ai][si - 1], V[ai - 1][si], V[ai][si]) * foil(w, a) * POL_HULL;
-    }
+  const out = { foil: new Float32Array(181 * N) };
+  for (let a = 0; a <= 180; a++) for (let w = 0; w <= POL_MAXW; w++) { const [si, sf] = step(w, fS), [ai, af] = step(a, fA); out.foil[a * N + w] = bil(af, sf, FM[ai - 1][si - 1], FM[ai][si - 1], FM[ai - 1][si], FM[ai][si]); }
+  for (const k in POL_SAILS) {
+    const T = new Float32Array(181 * N), V = POL_SAILS[k];
+    for (let a = 0; a <= 180; a++) for (let w = 0; w <= POL_MAXW; w++) { const [si, sf] = step(w, POL_TWS), [ai, af] = step(a, POL_TWA); T[a * N + w] = bil(af, sf, V[ai - 1][si - 1], V[ai][si - 1], V[ai - 1][si], V[ai][si]); }
     out[k] = T;
   }
   return out;
 })();
+// Options du bateau dans le jeu : foils, polish de coque, voiles petit temps, de brise, reaching. Par défaut : foils + polish.
+let BOAT = { foil: true, hull: true, light: false, heavy: false, reach: false }, SAILS_ON = [0, 1];
+function setBoatOptions(o) {
+  BOAT = { ...BOAT, ...(o || {}) };
+  SAILS_ON = SAIL_LIST.map((s, i) => (!s.opt || BOAT[s.opt]) ? i : -1).filter(i => i >= 0);
+}
 function axIdx(ax, x) {
   x = Math.min(Math.max(x, ax[0]), ax[ax.length - 1]);
   let i = 0;
   while (i < ax.length - 2 && x > ax[i + 1]) i++;
   return [i, (x - ax[i]) / (ax[i + 1] - ax[i])];
 }
-function sailSpeed(twa, tws, k) {
-  const a = Math.min(Math.abs(twa), 180), w = Math.min(Math.max(tws, 0), POL_MAXW);
-  const a0 = Math.min(Math.floor(a), 179), w0 = Math.min(Math.floor(w), POL_MAXW - 1), fa = a - a0, fw = w - w0, N = POL_MAXW + 1;
-  const T = POLAR_D[k], i = a0 * N + w0;
+function tabAt(T, a0, w0, fa, fw) {
+  const N = POL_MAXW + 1, i = a0 * N + w0;
   return (T[i] * (1 - fw) + T[i + 1] * fw) * (1 - fa) + (T[i + N] * (1 - fw) + T[i + N + 1] * fw) * fa;
 }
-// Meilleure vitesse, toutes voiles confondues.
-function polarSpeed(twa, tws) { return Math.max(sailSpeed(twa, tws, 'jib'), sailSpeed(twa, tws, 'spi')); }
-// Voile portée et vitesse, comme le pilote de voiles du jeu : on garde la voile en cours tant que l'autre ne va pas 1,4 % plus vite.
-// Voiles : 1 = foc, 2 = spi.
+// Vitesses de toutes les voiles disponibles, foils et polish compris selon les options. Voiles : 1 = foc, 2 = spi, 3 à 7 = options.
+function sailSpeeds(twa, tws) {
+  const a = Math.min(Math.abs(twa), 180), w = Math.min(Math.max(tws, 0), POL_MAXW);
+  const a0 = Math.min(Math.floor(a), 179), w0 = Math.min(Math.floor(w), POL_MAXW - 1), fa = a - a0, fw = w - w0;
+  const f = (BOAT.foil ? tabAt(POLAR_D.foil, a0, w0, fa, fw) : 1) * (BOAT.hull ? POL_HULL : 1), out = [];
+  for (const i of SAILS_ON) out.push([i + 1, tabAt(POLAR_D[SAIL_LIST[i].k], a0, w0, fa, fw) * f]);
+  return out;
+}
+// Meilleure vitesse, toutes voiles disponibles confondues.
+function polarSpeed(twa, tws) { let b = 0; for (const [, v] of sailSpeeds(twa, tws)) if (v > b) b = v; return b; }
+// Voile portée et vitesse, comme le pilote de voiles du jeu : on garde la voile en cours tant qu'une autre ne va pas 1,4 % plus vite.
 function sailPick(twa, tws, cur) {
-  const j = sailSpeed(twa, tws, 'jib'), s = sailSpeed(twa, tws, 'spi');
-  let b = s > j ? 2 : 1;
-  if (cur && cur !== b) { const vc = cur === 1 ? j : s; if (Math.max(j, s) < vc * AUTO_SAIL_TOL) b = cur; }
-  return { sail: b, v: b === 1 ? j : s };
+  const L = sailSpeeds(twa, tws); let b = L[0];
+  for (const x of L) if (x[1] > b[1]) b = x;
+  if (cur && cur !== b[0]) { const c = L.find(x => x[0] === cur); if (c && b[1] < c[1] * AUTO_SAIL_TOL) b = c; }
+  return { sail: b[0], v: b[1] };
 }
 // Coefficient de polaire selon la force du vent : relevés du jeu par tranche de vent, sinon le coefficient unique.
 function coefAt(cfg, tws) {
@@ -1244,6 +1421,20 @@ function updateStart() {
     ? 'La route part de ce point, maintenant. Tu peux aussi toucher la mer dans l\'onglet Carte, puis « Prendre ce point comme position du bateau ».'
     : 'L\'outil compare plusieurs heures de départ depuis la ligne.';
 }
+// Options du bateau : elles décident des voiles disponibles et des bonus de vitesse.
+function applyBoat() {
+  const o = Object.assign({ foil: true, hull: true, light: false, heavy: false, reach: false }, state.boat || {});
+  setBoatOptions(o);
+  document.querySelectorAll('#boatOpts [data-opt]').forEach(c => { c.checked = !!o[c.dataset.opt]; });
+  const full = o.light && o.heavy && o.reach, n = SAILS_ON.length;
+  $('#boatHint').textContent = n + ' voiles disponibles : ' + SAILS_ON.map(i => SAIL_LIST[i].name).join(', ') + '.' + (full && o.foil && o.hull ? ' C\'est le « full pack ».' : '') + ' Si tu changes une option, mets la route à jour.';
+}
+document.querySelectorAll('#boatOpts [data-opt]').forEach(c => c.addEventListener('change', () => {
+  state.boat = Object.assign({ foil: true, hull: true, light: false, heavy: false, reach: false }, state.boat || {}, { [c.dataset.opt]: c.checked });
+  saveState(); applyBoat(); if (typeof showSpeed === 'function') showSpeed();
+  if (results.length) { results = []; setResultsVisible(false); dropRoute(); setStatus('Options du bateau modifiées. Mets la route à jour.'); }
+  drawMap();
+}));
 function readSettings() { FIELDS.forEach(k => { state[k] = $('#' + k).value; }); state.preset = $('#preset').value; state.mode = $('#mode').value; saveState(); applyIce(); updateStart(); }
 function fillSettings() { FIELDS.forEach(k => { $('#' + k).value = state[k]; }); $('#preset').value = state.preset; $('#mode').value = state.mode; applyIce(); updateStart(); }
 // Limite des glaces saisie dans Réglages, une ligne par point ; vide = limite approximative par défaut.
@@ -2016,7 +2207,7 @@ $('#viewSimple').addEventListener('click', () => { state.simple = true; saveStat
 $('#viewFull').addEventListener('click', () => { state.simple = false; saveState(); if (results.length) renderResults(); });
 
 /* Regroupe les pas de calcul en étapes : même bord, même voile, cap proche du cap moyen de l'étape. */
-const sailOf = s => (s.sail || sailPick(s.twa, s.tws).sail) === 2 ? 'spi' : 'jib';
+const sailOf = s => SAIL_LIST[(s.sail || sailPick(s.twa, s.tws).sail) - 1].name;
 function groupLegs(steps, tol, splitSail) {
   const legs = [];
   for (const s of steps) {
@@ -2024,14 +2215,14 @@ function groupLegs(steps, tol, splitSail) {
     if (L && Math.sign(L.twaW) === Math.sign(s.twa) && (!splitSail || L.sail === sail) && Math.abs(angDiff((Math.atan2(L.sx, L.sy) / D2R + 360) % 360, s.hdg)) <= tol) {
       L.dur += d; L.sx += d * Math.sin(s.hdg * D2R); L.sy += d * Math.cos(s.hdg * D2R);
       L.twaW += d * s.twa; L.twsW += d * s.tws; L.bsW += d * s.bs; L.twdX += d * Math.sin(s.twd * D2R); L.twdY += d * Math.cos(s.twd * D2R);
-      L.t1 = s.t1; L.steps.push(s); L.sailW[sail] += d;
+      L.t1 = s.t1; L.steps.push(s); L.sailW[sail] = (L.sailW[sail] || 0) + d;
     } else {
       legs.push({ t0: s.t0, t1: s.t1, dur: d, sx: d * Math.sin(s.hdg * D2R), sy: d * Math.cos(s.hdg * D2R), twaW: d * s.twa, twsW: d * s.tws, bsW: d * s.bs,
-        twdX: d * Math.sin(s.twd * D2R), twdY: d * Math.cos(s.twd * D2R), sail, sailW: { jib: sail === 'jib' ? d : 0, spi: sail === 'spi' ? d : 0 }, steps: [s] });
+        twdX: d * Math.sin(s.twd * D2R), twdY: d * Math.cos(s.twd * D2R), sail, sailW: { [sail]: d }, steps: [s] });
     }
   }
   for (const L of legs) {
-    L.hdg = (Math.atan2(L.sx, L.sy) / D2R + 360) % 360; L.sail = L.sailW.spi > L.sailW.jib ? 'spi' : 'jib';
+    L.hdg = (Math.atan2(L.sx, L.sy) / D2R + 360) % 360; L.sail = Object.entries(L.sailW).sort((a, b) => b[1] - a[1])[0][0];
     L.twaAvg = L.twaW / L.dur; L.tws = L.twsW / L.dur; L.bs = L.bsW / L.dur;
     L.twd = (Math.atan2(L.twdX, L.twdY) / D2R + 360) % 360;
     const offs = L.steps.map(s => angDiff(s.hdg, L.hdg));
@@ -2170,7 +2361,7 @@ function renderResults() {
     const prev = r.view[i - 1]; if (!prev) return;
     const parts = [];
     if (Math.sign(prev.twaAvg) !== Math.sign(L.twaAvg)) parts.push((Math.abs(L.twaAvg) < 90 ? 'Virement' : 'Empannage') + ' vers ' + Math.round(L.hdg) + '°');
-    if (prev.sail !== L.sail) parts.push('passe au ' + (L.sail === 'jib' ? 'foc' : 'spi'));
+    if (prev.sail !== L.sail) parts.push((L.sail === 'trinquette' ? 'passe à la ' : 'passe au ') + L.sail);
     if (!parts.length) return; nKeys++;
     const row = document.createElement('div'); row.className = 'k';
     const a = document.createElement('span'); a.textContent = dayFmt.format(atT(L.t0)).replace(/\.$/, '') + ' ' + hourFmt.format(atT(L.t0));
@@ -2201,14 +2392,14 @@ function renderResults() {
     const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = Math.round(L.hdg) + '°';
     const sm = document.createElement('small'); sm.textContent = 'cap'; cap.append(sm);
     const meta = document.createElement('div'); meta.className = 'meta';
-    meta.textContent = (L.spread > 8 ? 'Cap moyen, route calculée entre ' + Math.round(L.lo) + '° et ' + Math.round(L.hi) + '° · ' : '') + 'angle du vent à verrouiller ' + Math.round(Math.abs(L.twaAvg)) + '° ' + (port ? 'bâbord' : 'tribord') + ' · vent ' + Math.round(L.twd) + '° ' + L.tws.toFixed(0) + ' nds · bateau ' + L.bs.toFixed(0) + ' nds · ' + fmtDur(L.dur) + ' · voile ' + L.sail + (L.sailW.jib > 0 && L.sailW.spi > 0 ? ' le plus souvent' : '');
+    meta.textContent = (L.spread > 8 ? 'Cap moyen, route calculée entre ' + Math.round(L.lo) + '° et ' + Math.round(L.hi) + '° · ' : '') + 'angle du vent à verrouiller ' + Math.round(Math.abs(L.twaAvg)) + '° ' + (port ? 'bâbord' : 'tribord') + ' · vent ' + Math.round(L.twd) + '° ' + L.tws.toFixed(0) + ' nds · bateau ' + L.bs.toFixed(0) + ' nds · ' + fmtDur(L.dur) + ' · voile ' + L.sail + (Object.keys(L.sailW).length > 1 ? ' le plus souvent' : '');
     const act = document.createElement('div'); act.className = 'act';
     if (!prev) act.textContent = (racing() ? 'Depuis ta position, prends le cap ' : 'Franchis ' + COURSE.startLine + ' et prends le cap ') + Math.round(L.hdg) + '°, sous ' + L.sail + '.';
     else {
       const dlt = Math.round(angDiff(L.hdg, prev.hdg)), side = dlt > 0 ? 'à droite' : 'à gauche';
       const tackChange = Math.sign(prev.twaAvg) !== Math.sign(L.twaAvg);
       const kind = !tackChange ? 'Change de cap' : (Math.abs(L.twaAvg) < 90 ? 'Virement de bord' : 'Empannage');
-      act.textContent = kind + ' : ' + Math.round(prev.hdg) + '° → ' + Math.round(L.hdg) + '° (' + Math.abs(dlt) + '° ' + side + ').' + (prev.sail !== L.sail ? ' Passe au ' + L.sail + '.' : '');
+      act.textContent = kind + ' : ' + Math.round(prev.hdg) + '° → ' + Math.round(L.hdg) + '° (' + Math.abs(dlt) + '° ' + side + ').' + (prev.sail !== L.sail ? (L.sail === 'trinquette' ? ' Passe à la ' : ' Passe au ') + L.sail + '.' : '');
     }
     const pos = document.createElement('div'); pos.className = 'meta'; pos.style.fontFamily = 'var(--font-mono)'; pos.style.color = 'var(--fg)';
     pos.textContent = (prev ? 'Point de la manœuvre : ' : 'Départ : ') + posOf(L);
@@ -2607,7 +2798,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '40';
+const VERSION = '41';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -2960,7 +3151,7 @@ $('#about').textContent = 'Version ' + VERSION + '. Vent : modèle GFS de la NOA
 })();
 $('#course').addEventListener('change', e => { try { localStorage.setItem('routage-course', e.target.value); } catch (er) {} location.reload(); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
-fillSettings(); showPen(); showSpeed(); syncCustom(); syncNext(); if (!(state.log || []).length && state.posAt) logPos(); renderLog(); showCal(); updateChrono(); renderPosed(); updateDash(); updateTime();
+applyBoat(); fillSettings(); showPen(); showSpeed(); syncCustom(); syncNext(); if (!(state.log || []).length && state.posAt) logPos(); renderLog(); showCal(); updateChrono(); renderPosed(); updateDash(); updateTime();
 showTab(location.hash.slice(1) || 'course', false);
 restoreSession();
 </script>
