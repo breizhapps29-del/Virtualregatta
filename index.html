@@ -1995,6 +1995,7 @@ function renderResults() {
   if (nx) fact('Prochain changement de bord', clockFmt.format(atT(nx.t0)) + ', cap ' + Math.round(nx.hdg) + '°, à ' + posOf(nx));
   b.append(dl);
   if (r.keep) b.append(mk('keep', 'Garde tes bouées'), mk('sub', (r.keep.gain <= 1 / 60 ? 'Aucune autre route trouvée n\'arrive plus tôt' : 'La route la plus rapide trouvée ne gagne que ' + fmtDur(r.keep.gain)) + ' (il faut au moins ' + fmtDur(KEEP_GAIN) + ' pour conseiller de changer). La route et la liste de bouées suivent celles que tu as posées.'));
+  else if (r.posedNow) b.append(mk('keep', 'Bouées à jour'), mk('sub', 'Tu as posé les bouées de cette route. Refais un calcul après la prochaine prévision du jeu pour vérifier qu\'elles restent les meilleures.'));
   else if (r.change) b.append(mk('keep change', 'Change tes bouées'), mk('sub', 'La nouvelle route arrive ' + fmtDur(r.change.gain) + ' plus tôt qu\'en suivant ' + (r.change.n > 1 ? 'tes ' + r.change.n + ' bouées encore devant toi. Remplace-les' : 'ta bouée encore devant toi. Remplace-la') + ' par la nouvelle liste de l\'onglet Route.'));
   const deps = $('#deps'); deps.textContent = '';
   results.forEach((x, i) => {
@@ -2426,7 +2427,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '35';
+const VERSION = '36';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -2505,7 +2506,10 @@ $('#btnPosed').addEventListener('click', () => {
   if (!flagList.length || !grid) return;
   const flags = flagList.map(f => ({ lat: +f.lat.toFixed(4), lon: +f.lon.toFixed(4), ms: atT(f.t).getTime() }));
   state.posed = { at: Date.now(), flags, pts: traceTo(results[selected], flags) };
-  saveState(); renderPosed(); updateDash();
+  // Les bouées de cette route sont posées : le conseil « Change tes bouées » n'a plus lieu d'être.
+  results.forEach(x => { delete x.change; delete x.keep; });
+  results[selected].posedNow = true;
+  saveState(); restoring = true; try { renderResults(); } finally { restoring = false; } renderPosed(); updateDash(); saveRoute();
 });
 
 /* ---------- Repères : le record et la moyenne des records précédents ---------- */
