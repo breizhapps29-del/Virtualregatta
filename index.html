@@ -1554,10 +1554,11 @@ const BANDS = [0, 10, 16, 22, 99];
 const med = a => { const b = [...a].sort((x, y) => x - y), n = b.length; return n % 2 ? b[(n - 1) / 2] : (b[n / 2 - 1] + b[n / 2]) / 2; };
 let coefBands = null;
 function calcCoef() {
-  const L = (state.spd || []).filter(e => Date.now() - e.at < 10 * 86400e3);
+  // Un écart de plus de 30 % avec la polaire vient d'une mauvaise lecture (chiffre manqué) : relevé ignoré.
+  const L = (state.spd || []).filter(e => Date.now() - e.at < 10 * 86400e3 && e.r >= 0.7 && e.r <= 1.3);
   state.spd = L; L.forEach(e => { e.out = false; });
   coefBands = null;
-  if (!L.length) return null;
+  if (!L.length) { if (!(+state.coef >= 0.7 && +state.coef <= 1.3)) { state.coef = '1.00'; $('#coef').value = '1.00'; } return null; }
   const m = med(L.map(e => e.r));
   if (L.length >= 3) L.forEach(e => { e.out = Math.abs(e.r / m - 1) > 0.12; });
   const ok = L.filter(e => !e.out), all = med(ok.map(e => e.r));
@@ -1573,6 +1574,7 @@ function calcCoef() {
 function addSpeed(tws, twa, bs, at, src) {
   const p = polarSpeed(Math.abs(twa), tws);
   if (!(tws > 0) || !(bs > 0) || p < 1 || Math.abs(twa) < 35) return 'Cet angle est trop près du vent pour caler la vitesse.';
+  const r = bs / p; if (r < 0.7 || r > 1.3) return 'Vitesse de ' + bs + ' nds trop loin de la polaire (' + p.toFixed(1) + ' nds attendus) : vérifie le relevé, il n\'est pas pris en compte.';
   const L = state.spd || (state.spd = []);
   if (L.some(e => Math.abs(e.at - at) < 5 * 60e3 && e.tws === tws && e.bs === bs)) return null;
   L.push({ at, tws, twa: Math.round(Math.abs(twa)), bs, r: +(bs / p).toFixed(3), src });
@@ -1744,7 +1746,7 @@ async function run() {
       }
     }
     const bi = bestIndex();
-    if (bi < 0) { setStatus('Aucune route trouvée. Vérifie le départ et la destination.', true); setResultsVisible(false); return; }
+    if (bi < 0) { setStatus('Aucune route trouvée. Vérifie le départ et la destination' + (Math.abs(+state.coef - 1) > 0.2 ? ', et le coefficient de polaire (' + state.coef + ') dans Réglages' : '') + '.', true); setResultsVisible(false); return; }
     selected = bi; setStatus('Calcul terminé.');
     setResultsVisible(true); renderResults();
   } finally { btn.disabled = false; }
@@ -2424,7 +2426,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '34';
+const VERSION = '35';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
