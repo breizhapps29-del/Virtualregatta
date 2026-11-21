@@ -1291,6 +1291,12 @@ function isLand(lat, lon) {
 }
 // Le trajet 1 -> 2 reste-t-il en mer ? Test exact contre les côtes (même les petites îles), et par points pour l'Antarctique et les glaces.
 let LAND_BOX = null;
+// Zones interdites propres à une course (rails de navigation) : traitées comme de la terre pour le routage, dessinées à part sur la carte.
+function setZones(zs) {
+  for (let i = LAND.length - 1; i >= 0; i--) if (LAND[i].zone) LAND.splice(i, 1);
+  (zs || []).forEach(z => { const p = z.pts.slice(); p.zone = true; p.name = z.name; LAND.push(p); });
+  LAND_BOX = null;
+}
 function segHit(ax, ay, bx, by, cx, cy, dx, dy) {
   const d1 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx), d2 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
   const d3 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax), d4 = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
@@ -1703,11 +1709,20 @@ const COURSES = {
           { a: { lat: 36.06, lon: -5.6 }, b: { lat: 35.84, lon: -5.6 }, reach: 10, name: 'Gibraltar' }, { a: { lat: 36.74, lon: -2.19 }, b: { lat: 35.12, lon: -2.19 }, reach: 10, name: 'Cabo de Gata' },
           { a: { lat: 37.63, lon: -0.69 }, b: { lat: 37.63, lon: 2.0 }, reach: 30, name: 'Cabo de Palos' }],
     boatDefault: { foil: true, hull: false, light: false, heavy: false, reach: false, winch: false }, fixedStart: true,
+    // Zones interdites relevées sur la carte du jeu (rails de navigation) : à préciser avec des captures zoomées.
+    zones: [
+      { name: 'Rail du cap Finisterre', pts: [[43.33, -10.0], [43.6, -9.71], [43.43, -9.36], [42.8, -9.71], [42.85, -10.0]] },
+      { name: 'Rail du cap da Roca', pts: [[38.88, -10.0], [38.88, -9.46], [38.6, -9.46], [38.6, -10.0]] },
+      { name: 'Rail du cap Saint-Vincent', pts: [[37.03, -9.48], [37.1, -9.03], [36.64, -8.74], [36.54, -9.13]] },
+      { name: 'Séparation du détroit de Gibraltar', pts: [[35.978, -5.75], [35.978, -5.4], [35.958, -5.4], [35.958, -5.75]] },
+      { name: 'Rail du cabo de Gata', pts: [[36.62, -2.22], [36.62, -2.0], [36.45, -2.0], [36.45, -2.22]] }
+    ],
     restart: { gate: IMOCA_FIN, mark: 'fin', aim: { lat: 38.32, lon: -0.44 }, goals: [{ lat: 38.32, lon: -0.44 }], label: 'Alicante', min: 6 } }
 };
 const COURSE_ID = (() => { try { const c = localStorage.getItem('routage-course'); return COURSES[c] ? c : 'jv'; } catch (e) { return 'jv'; } })();
 const COURSE = COURSES[COURSE_ID];
 setBoatType(COURSE.boat || 'ultim');
+setZones(COURSE.zones || []);
 const STORE_KEY = COURSE.store;
 const DEFAULT_STATE = { preset: COURSE.defPreset, tlat: '16.5', tlon: '-27', coef: '1.00', pen: '8', dt: '2', cTws: '', cTwa: '', cBs: '', mode: 'start', slat: '', slon: '', simple: true, minleg: '4', nflags: '6', fh: '24', cal: [], log: [], next: '', sailPen: '0', penMode: 'game', penSpeed: '50', energy: '100', ice: '', raceStart: COURSE.raceStart, posed: null, posAt: 0, splits: {}, spd: [] };
 if (!/^gate:/.test(COURSE.defPreset) && COURSE.defPreset.includes('|')) [DEFAULT_STATE.tlat, DEFAULT_STATE.tlon] = COURSE.defPreset.split('|');
@@ -3041,7 +3056,10 @@ function drawMap() {
   c.fillStyle = col('--land'); c.strokeStyle = col('--coast'); c.lineWidth = 1;
   for (const off of [-360, 0, 360]) {
     if (loR < -180 + off - 5 || loL > 180 + off + 5) continue;
-    LAND.forEach(poly => { c.beginPath(); poly.forEach((p, i) => { const [x, y] = XY(p[0], p[1] + off); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath(); c.fill(); c.stroke(); });
+    LAND.forEach(poly => { if (poly.zone) return; c.beginPath(); poly.forEach((p, i) => { const [x, y] = XY(p[0], p[1] + off); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath(); c.fill(); c.stroke(); });
+    // Zones interdites de la course : rouge, comme dans le jeu
+    LAND.forEach(poly => { if (!poly.zone) return; c.save(); c.beginPath(); poly.forEach((p, i) => { const [x, y] = XY(p[0], p[1] + off); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath();
+      c.fillStyle = 'rgba(224,69,58,0.28)'; c.fill(); c.strokeStyle = '#E0453A'; c.lineWidth = 2; c.stroke(); c.restore(); });
   }
 
   // Antarctique, d'après sa côte approchée
@@ -3294,7 +3312,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '46';
+const VERSION = '47';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
