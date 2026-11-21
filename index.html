@@ -1485,7 +1485,8 @@ function computeRoute(cfg, samples, depT) {
           const s = G.cross(p.lat, p.lon, la, lo);
           if (s !== null) {
             const cl = p.lat + (la - p.lat) * s, co = p.lon + (lo - p.lon) * s;
-            if (pathClear(p.lat, p.lon, cl, co) && !walled(p.lat, p.lon, cl, co)) {
+            // Les portes de passage doivent être franchies avant la ligne d'arrivée, pas sur le bout du pas qui la dépasse.
+            if (stAfter(ps, p.lat, p.lon, cl, co) === NV && pathClear(p.lat, p.lon, cl, co) && !walled(p.lat, p.lon, cl, co)) {
               const tArr = p.t + pen + s * eff;
               if (!arrival || tArr < arrival.t) arrival = { lat: cl, lon: co, t: tArr, parent: p, tack, sail, en, step: { ...step, t1: tArr } };
             }
@@ -1758,7 +1759,7 @@ const COURSES = {
     store: 'imoca-routage-v1', plans: 'imoca-routage-plans-v1', idb: 'imoca-routage', solo: false, raceStart: '2026-11-22T17:00', defPreset: IMOCA_FIN,
     // Les caps à contourner, dans l'ordre : lignes que toute route traverse forcément. Elles guident le calcul autour de la péninsule.
     via: [{ a: { lat: 42.88, lon: -9.27 }, b: { lat: 42.88, lon: -16 }, reach: 30, name: 'Cap Finisterre' }, { a: { lat: 37.02, lon: -8.99 }, b: { lat: 37.02, lon: -15 }, reach: 30, name: 'Cap Saint-Vincent' },
-          { a: { lat: 36.06, lon: -5.6 }, b: { lat: 35.84, lon: -5.6 }, reach: 10, name: 'Gibraltar' }, { a: { lat: 36.74, lon: -2.19 }, b: { lat: 35.12, lon: -2.19 }, reach: 10, name: 'Cabo de Gata' },
+          { a: { lat: 36.06, lon: -5.6 }, b: { lat: 35.84, lon: -5.6 }, reach: 10, name: 'Gibraltar' }, { a: { lat: 36.74, lon: -2.19 }, b: { lat: 36.1, lon: -2.19 }, reach: 10, name: 'Cabo de Gata' },
           { a: { lat: 37.63, lon: -0.69 }, b: { lat: 37.63, lon: 2.0 }, reach: 30, name: 'Cabo de Palos' }],
     boatDefault: { foil: true, hull: false, light: false, heavy: false, reach: false, winch: false }, fixedStart: true,
     // Zones interdites relevées sur la carte du jeu (rails de navigation) : à préciser avec des captures zoomées.
@@ -3366,7 +3367,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '49';
+const VERSION = '50';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
