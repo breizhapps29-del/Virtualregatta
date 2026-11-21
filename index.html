@@ -82,6 +82,12 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .chk{display:flex;gap:8px;align-items:center;font-size:.95rem}.chk input{width:20px;height:20px}
 .opts{border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin:0 0 12px;display:grid;gap:8px}.opts legend{padding:0 4px;font-weight:600}
 .away{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end}
+.ftools{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px}.ftools .chk{font-size:.9rem;min-height:44px}
+button.mini{min-height:40px;padding:6px 14px;font-size:.9rem}
+.keys .k.done > span{opacity:.55}.keys .k.done > span:first-child{text-decoration:line-through}
+.logsvg .bar{fill:var(--muted);opacity:.55}.logsvg .bar.hi{opacity:1}.logsvg .bar.hi{fill:var(--accent)}.logsvg .tv{font-size:10px;fill:var(--fg);font-family:var(--font-display);font-weight:600}
+.maphud{padding:10px 14px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);font-size:.86rem;color:var(--soft)}
+.maphud b{display:block;font-family:var(--font-display);font-size:1.15rem;color:var(--accent);font-weight:700}
 .shotrow{display:grid;gap:4px;margin-bottom:6px}.shotrow button{justify-self:start}.shotrow .hint{margin:0}
 .empty{padding:22px 16px;border:1px dashed var(--line);border-radius:6px;color:var(--muted);display:flex;flex-direction:column;gap:12px;align-items:flex-start}
 
@@ -108,17 +114,17 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .facts dd{margin:0;font-weight:500}
 
 /* Carte */
-.mapwrap{border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--sea);position:relative}
+.mapwrap{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--sea);position:relative}
 canvas{display:block;width:100%}
 #map{cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .mapctl{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:6px}
-.mapctl button{width:42px;height:42px;padding:0;font-size:1.25rem;line-height:1;background:var(--surface)}
+.mapctl button{width:44px;height:44px;padding:0;font-size:1.3rem;line-height:1;background:color-mix(in srgb,var(--surface) 88%,transparent);border-radius:12px;backdrop-filter:blur(4px)}
 .mapctl button.txt{font-size:.74rem;font-weight:600}
-.timebar{display:flex;flex-direction:column;gap:2px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.timebar{display:flex;flex-direction:column;gap:2px;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
 .timelabel{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
 .timelabel #tLabel{font-family:var(--font-display);font-weight:600;font-size:1.25rem}
 .timelabel #tRel{color:var(--muted);font-size:.9rem}
-.readout{font-size:.95rem;line-height:1.4;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:6px;white-space:pre-line;min-height:3.2em}
+.readout{font-size:.95rem;line-height:1.4;padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);white-space:pre-line;min-height:3.2em}
 .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.85rem;color:var(--muted)}
 .sw{display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
 .k small.kn{display:block;font-family:var(--font-body);font-size:.85rem;color:var(--muted);margin-top:2px}
@@ -434,6 +440,7 @@ body.oncourse{padding-bottom:calc(var(--bar) + env(safe-area-inset-bottom,0px) +
         <input type="range" id="tsl" min="0" max="0" step="1" value="0" aria-label="Heure affichée sur la carte" disabled>
       </div>
     </div>
+    <div class="maphud" id="mapHud" hidden></div>
     <div class="mapwrap">
       <canvas id="map" aria-label="Carte du vent et de la route"></canvas>
       <div class="mapctl">
@@ -2045,6 +2052,18 @@ async function fetchRun() {
     return s > 0 ? s * 1000 : null;
   } catch (e) { return null; }
 }
+// Surveillance : toutes les 15 minutes (appli ouverte), on regarde si une prévision plus récente que celle de la route est sortie.
+let latestRun = null;
+const newerRun = () => !!(grid && gfsRun && latestRun && latestRun > gfsRun);
+async function pollRun() {
+  if (document.hidden) return;
+  const r = await fetchRun(); if (!r) return;
+  const was = newerRun(); latestRun = r;
+  if (newerRun() !== was) { updateRunNote(); updateDash(); }
+}
+setInterval(pollRun, 15 * 60e3);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) pollRun(); });
+setTimeout(pollRun, 4000);
 const runText = ms => ms ? 'Prévision GFS de ' + new Date(ms).getUTCHours() + ' h UTC (' + clockFmt.format(new Date(ms)) + ', heure française). ' : '';
 async function loadWind() {
   readSettings();
@@ -2090,6 +2109,11 @@ function updateRunNote() {
     el.textContent = 'Le jeu utilise la prévision de ' + utcH(gr) + ' depuis ' + hourFmt.format(new Date(sw)) + '. ' + (results.length ? 'Ta route a été calculée' : 'Ton vent a été chargé') + (gfsRun ? ' avec celle de ' + utcH(gfsRun) : ' avant') + ' : mets-la à jour, le vent sera rechargé.';
     return;
   }
+  if (newerRun()) {
+    el.classList.add('alert');
+    el.textContent = 'Nouvelle prévision GFS de ' + utcH(latestRun) + ' disponible. ' + (latestRun > gr ? 'Le jeu la prendra à ' + hourFmt.format(new Date(latestRun + H6)) + ' : recalcule maintenant pour préparer tes bouées.' : 'Le jeu l\'utilise déjà : mets la route à jour.');
+    return;
+  }
   el.textContent = gfsRun && gfsRun > gr ? 'Ta route utilise déjà la prévision de ' + utcH(gfsRun) + ', que le jeu prendra à ' + hourFmt.format(new Date(nx)) + '.'
     : (gfsRun ? 'Ta route utilise la même prévision que le jeu. ' : '') + 'Prochaine prévision dans le jeu à ' + hourFmt.format(new Date(nx)) + '.';
 }
@@ -2099,7 +2123,7 @@ async function refreshAll() {
   if (racing() && START === OUESSANT) { setStatus('Indique d\'abord la position du bateau, lue dans le jeu.', true); return; }
   const btn = $('#btnGo'); btn.disabled = true; refreshing = true;
   try {
-    const stale = !grid || Date.now() - windLoadedAt > 3 * 3600e3 || windBehind() || [START, ...goalPts()].some(p => isNaN(p.lat) || isNaN(p.lon) || !inGrid(p.lat, p.lon));
+    const stale = !grid || Date.now() - windLoadedAt > 3 * 3600e3 || windBehind() || newerRun() || [START, ...goalPts()].some(p => isNaN(p.lat) || isNaN(p.lon) || !inGrid(p.lat, p.lon));
     if (stale && !(await loadWind())) return;
     // Relevé du vent du jeu saisi avec la position : il corrige la prévision avant le calcul.
     const qd = $('#qDir').value.trim(), qs = $('#qSpd').value.trim();
@@ -2272,7 +2296,7 @@ function computeFlags(r, N, H) {
   const tEnd = Math.min(r.arrT, r.depT + H), tgt = r.end || target(), P = [];
   for (let i = 0; i < r.steps.length; i++) {
     const s = r.steps[i]; if (s.t0 >= tEnd - 1e-9) break;
-    P.push({ lat: s.lat0, lon: s.lon0, t: s.t0, buoy: !!s.buoy });
+    P.push({ lat: s.lat0, lon: s.lon0, t: s.t0, buoy: !!s.buoy, hdg: s.hdg, twa: s.twa });
     if (s.t1 >= tEnd - 1e-9) {
       const nx = r.steps[i + 1] ? { lat: r.steps[i + 1].lat0, lon: r.steps[i + 1].lon0 } : tgt, f = Math.min(1, (tEnd - s.t0) / (s.t1 - s.t0));
       P.push({ lat: s.lat0 + (nx.lat - s.lat0) * f, lon: s.lon0 + (nx.lon - s.lon0) * f, t: tEnd });
@@ -2294,7 +2318,20 @@ function computeFlags(r, N, H) {
     for (let s = 0; s < sel.length - 1; s++) for (let i = sel[s] + 1; i < sel[s + 1]; i++) { const d = distSeg(P[i], P[sel[s]], P[sel[s + 1]]); if (d > best.d) best = { d, i }; }
     return best;
   };
+  // Le bateau tourne en arrivant à la bouée : une bouée posée pile au virement ou à l'empannage reproduit la route.
+  // On place d'abord les bouées aux vrais changements de cap (les plus forts d'abord), puis on complète là où la route s'écarte le plus.
+  const turns = [];
+  for (let i = 1; i < P.length - 1; i++) {
+    if (P[i].hdg == null || P[i - 1].hdg == null) continue;
+    const dh = Math.abs(((P[i].hdg - P[i - 1].hdg + 540) % 360) - 180), tk = Math.sign(P[i].twa) !== Math.sign(P[i - 1].twa);
+    if (tk || dh >= 20) turns.push({ i, w: (tk ? 100 : 0) + dh });
+  }
+  turns.sort((a, b) => b.w - a.w);
+  for (const tr of turns) { if (sel.length - 1 >= N) break; if (!sel.includes(tr.i)) { sel.push(tr.i); sel.sort((a, b) => a - b); } }
   while (sel.length - 1 < Math.max(N, sel.length - 1)) { const w = worst(); if (w.i < 0 || w.d < 3) break; sel.push(w.i); sel.sort((a, b) => a - b); }
+  // Bouées inutiles : si la route reste à moins de 3 Mn sans elle, on la retire (moins de saisie dans le jeu).
+  const spanDev = (a, b) => { let d = 0; for (let i = a + 1; i < b; i++) d = Math.max(d, distSeg(P[i], P[a], P[b])); return d; };
+  for (let k = sel.length - 2; k >= 1; k--) { const i = sel[k]; if (P[i].buoy) continue; if (spanDev(sel[k - 1], sel[k + 1]) < 3) sel.splice(k, 1); }
   return { flags: sel.slice(1).map(i => ({ ...P[i], posed: P[i].buoy })), dev: worst().d, last: tEnd >= r.arrT - 1e-6 };
 }
 function renderFlags() {
@@ -2335,8 +2372,24 @@ function renderFlags() {
       t.textContent = tag[i].k === 'same' ? 'Déjà posée, ne change rien' : tag[i].k === 'add' ? 'Nouvelle bouée à ajouter' : 'À déplacer : elle est à ' + fmtDM(tag[i].o.lat, 'N', 'S') + ', ' + fmtDM(tag[i].o.lon, 'E', 'O') + ' (' + Math.round(hav(tag[i].o.lat, tag[i].o.lon, f.lat, f.lon)) + ' Mn d\'écart)';
       b.prepend(t);
     }
+    // Fiche de saisie : une case par bouée, cochée au fur et à mesure qu'on la recopie dans le jeu, et un bouton pour copier la position.
+    const sig = res.flags.map(x => x.lat.toFixed(2) + ',' + x.lon.toFixed(2)).join(';'), E = state.entry && state.entry.sig === sig ? state.entry : (state.entry = { sig, done: [] });
+    const tools = document.createElement('div'); tools.className = 'ftools';
+    const ck = document.createElement('label'); ck.className = 'chk'; const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = E.done.includes(i) || !!f.posed;
+    ck.append(cb, document.createTextNode(' Saisie dans le jeu'));
+    if (cb.checked) row.classList.add('done');
+    cb.addEventListener('change', () => {
+      E.done = E.done.filter(x => x !== i); if (cb.checked) E.done.push(i); row.classList.toggle('done', cb.checked); saveState();
+      const n = res.flags.filter((x, j) => x.posed || E.done.includes(j)).length; prog.textContent = n + ' / ' + res.flags.length + ' saisies';
+      if (n === res.flags.length) { prog.textContent = 'Toutes saisies : bouées enregistrées.'; $('#btnPosed').click(); }
+    });
+    const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'mini'; cp.textContent = 'Copier';
+    cp.addEventListener('click', async () => { const txt = fmtDM(f.lat, 'N', 'S') + ' ' + fmtDM(f.lon, 'E', 'O'); try { await navigator.clipboard.writeText(txt); cp.textContent = 'Copié'; } catch (e) { cp.textContent = txt; } setTimeout(() => { cp.textContent = 'Copier'; }, 1800); });
+    tools.append(ck, cp); b.append(tools);
     row.append(a, b); box.append(row);
   });
+  const prog = document.createElement('div'); prog.className = 'flagsum'; { const E = state.entry || { done: [] }; prog.textContent = res.flags.filter((x, j) => x.posed || E.done.includes(j)).length + ' / ' + res.flags.length + ' saisies. Coche chaque bouée quand tu l\'as recopiée dans le jeu : à la dernière, elles sont enregistrées.'; }
+  box.append(prog);
   say('Écart maximal avec la route calculée : ' + Math.round(res.dev) + ' Mn.' + (res.dev > 25 ? ' C\'est beaucoup : ajoute des bouées ou couvre moins d\'heures.' : '') + ' Les heures sont indicatives : le bateau tourne en arrivant à la bouée.');
 }
 ['nflags', 'fh'].forEach(id => $('#' + id).addEventListener('input', () => { state[id] = $('#' + id).value; saveState(); renderFlags(); drawMap(); }));
@@ -2812,6 +2865,17 @@ function drawMap() {
   if (showRoute) flagList.forEach((f, i) => { if (f.posed || posed.some(p => near(p, f))) return; const [x, y] = XY(f.lat, f.lon); flag(x, y, col('--accent'), ''); flagsDrawn.push([x, y, String(i + 1)]);
     const from = i ? flagList[i - 1] : START;
     mapHits.push({ x: x + 5, y: y - 10, r: 16, text: 'Bouée à poser ' + (i + 1) + ' : ' + posTxt(f.lat, f.lon) + ', vers ' + clockFmt.format(atT(f.t)) + '. Cap ' + Math.round(bearing(from.lat, from.lon, f.lat, f.lon)) % 360 + '°, ' + Math.round(hav(from.lat, from.lon, f.lat, f.lon)) + ' Mn depuis ' + (i ? 'la bouée ' + i : 'le bateau') + '.' }); });
+  // Prochaine bouée : anneau ambré et fiche en haut à gauche de la carte (heure, cap et distance depuis le bateau).
+  const hud = $('#mapHud'), ahead = racing() ? (posedAhead() || []) : [];
+  const nb = ahead.length ? { lat: ahead[0].lat, lon: uw(ahead[0].lon), ms: ahead[0].ms, n: (state.posed.flags.indexOf(ahead[0]) + 1) || 1, posed: true } : showRoute && flagList.length && START !== OUESSANT ? { lat: flagList[0].lat, lon: flagList[0].lon, ms: atT(flagList[0].t).getTime(), n: 1, posed: false } : null;
+  if (nb) {
+    const [x, y] = XY(nb.lat, nb.lon); c.strokeStyle = col('--accent'); c.lineWidth = 2.5; c.beginPath(); c.arc(x, y, 13, 0, 7); c.stroke();
+    c.globalAlpha = 0.35; c.lineWidth = 6; c.beginPath(); c.arc(x, y, 19, 0, 7); c.stroke(); c.globalAlpha = 1;
+    hud.hidden = false;
+    hud.innerHTML = '';
+    const bb = document.createElement('b'); bb.textContent = (nb.posed ? 'Prochaine bouée ' : 'Première bouée à poser ') + nb.n + ' vers ' + hourFmt.format(new Date(nb.ms));
+    hud.append(bb, document.createTextNode('Cap ' + String(Math.round(bearing(START.lat, START.lon, nb.lat, nb.lon)) % 360).padStart(3, '0') + '°, ' + Math.round(hav(START.lat, START.lon, nb.lat, nb.lon)) + ' Mn depuis le bateau'));
+  } else hud.hidden = true;
   // Étiquettes, dans l'ordre d'importance : bateau, numéros de bouées, heures sur la route
   flagsDrawn.forEach(([x, y]) => taken.push({ x0: x - 3, y0: y - 21, x1: x + 14, y1: y + 3 }));
   startLabel();
@@ -2841,7 +2905,8 @@ function drawMap() {
     c.fillStyle = fill; c.strokeStyle = halo; c.lineWidth = 2;
     c.beginPath(); c.moveTo(0, -13 * s); c.quadraticCurveTo(7 * s, -2 * s, 5.5 * s, 10 * s); c.lineTo(-5.5 * s, 10 * s); c.quadraticCurveTo(-7 * s, -2 * s, 0, -13 * s); c.closePath(); c.stroke(); c.fill(); c.restore();
   };
-  if (showRoute && START !== OUESSANT) boat(sx, sy, r.steps[0].hdg, col('--accent'), 10);
+  if (START !== OUESSANT) { c.fillStyle = col('--accent'); c.globalAlpha = 0.22; c.beginPath(); c.arc(sx, sy, 18, 0, 7); c.fill(); c.globalAlpha = 1; }
+  if (showRoute && START !== OUESSANT) boat(sx, sy, r.steps[0].hdg, col('--accent'), 12);
   else { c.fillStyle = col('--accent'); c.strokeStyle = halo; c.lineWidth = 2; c.beginPath(); c.arc(sx, sy, 6, 0, 7); c.stroke(); c.fill(); }
   if (showRoute) { const b = boatAt(r, t); if (b && Math.abs(t - r.depT) > 0.4) { const [x, y] = XY(b.lat, b.lon); boat(x, y, b.s.hdg, ink, 11); } }
   // Où le bateau devrait être sur la route de ses bouées, à l'heure de la position saisie
@@ -2937,7 +3002,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '44';
+const VERSION = '45';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -3143,6 +3208,31 @@ function renderLog() {
     P.forEach(x => el('circle', { cx: X(x.p.el), cy: Y(-x.p.rec), r: 2.6, class: 'rec' }));
     box.append(svg);
     const lg = document.createElement('p'); lg.className = 'loglegend'; lg.innerHTML = '<span class="rec">sur le record</span><span class="avg">sur la moyenne</span>'; box.append(lg);
+    // Vitesse moyenne par jour de course : distance entre positions successives, rangée dans le jour où tombe le milieu du trajet.
+    const days = {};
+    for (let i = 1; i < P.length; i++) {
+      const h = (P[i].at - P[i - 1].at) / 3600e3; if (h <= 0 || h > 30) continue;
+      const d = Math.floor((P[i - 1].p.el + P[i].p.el) / 2 / 24), D = days[d] || (days[d] = { mn: 0, h: 0 });
+      D.mn += hav(P[i - 1].lat, P[i - 1].lon, P[i].lat, P[i].lon); D.h += h;
+    }
+    const DL = Object.keys(days).map(Number).sort((a, b) => a - b).filter(d => days[d].h >= 2).map(d => ({ d, v: days[d].mn / days[d].h, h: days[d].h }));
+    if (DL.length) {
+      const W2 = 340, H2 = 150, l2 = 34, b2 = 22, t2 = 18, vmax = Math.max(10, Math.ceil(Math.max(...DL.map(x => x.v)) / 10) * 10), bw = Math.min(34, (W2 - l2 - 8) / DL.length - 6);
+      const svg2 = document.createElementNS(ns, 'svg'); svg2.setAttribute('viewBox', '0 0 ' + W2 + ' ' + H2); svg2.setAttribute('class', 'logsvg'); svg2.setAttribute('role', 'img');
+      svg2.setAttribute('aria-label', 'Vitesse moyenne par jour de course : ' + DL.map(x => 'jour ' + x.d + ' ' + x.v.toFixed(1) + ' nœuds').join(', '));
+      const el2 = (n, a, txt) => { const e2 = document.createElementNS(ns, n); for (const k in a) e2.setAttribute(k, a[k]); if (txt != null) e2.textContent = txt; svg2.append(e2); return e2; };
+      const Y2 = v => t2 + (1 - v / vmax) * (H2 - t2 - b2);
+      for (let v = 0; v <= vmax; v += vmax > 30 ? 10 : 5) { el2('line', { x1: l2, x2: W2 - 8, y1: Y2(v), y2: Y2(v), class: v ? 'g' : 'z' }); el2('text', { x: l2 - 4, y: Y2(v) + 3.5, class: 'ty', 'text-anchor': 'end' }, v); }
+      const avgAll = DL.reduce((s2, x) => s2 + x.v * x.h, 0) / DL.reduce((s2, x) => s2 + x.h, 0);
+      DL.forEach((x, k) => {
+        const cx = l2 + 6 + k * ((W2 - l2 - 8) / DL.length) + ((W2 - l2 - 8) / DL.length - bw) / 2;
+        el2('rect', { x: cx, y: Y2(x.v), width: bw, height: Y2(0) - Y2(x.v), rx: 3, class: x.v >= avgAll ? 'bar hi' : 'bar' });
+        el2('text', { x: cx + bw / 2, y: Y2(x.v) - 4, class: 'tv', 'text-anchor': 'middle' }, x.v.toFixed(0));
+        el2('text', { x: cx + bw / 2, y: H2 - 6, class: 'tx', 'text-anchor': 'middle' }, 'J' + x.d);
+      });
+      const cap = document.createElement('p'); cap.className = 'hint'; cap.textContent = 'Vitesse moyenne par jour de course, en nœuds (moyenne de la tentative : ' + avgAll.toFixed(1).replace('.', ',') + ' nds ; en couleur, les jours au-dessus).';
+      box.append(svg2, cap);
+    }
   }
   // Les six dernières positions, avec la vitesse moyenne depuis la précédente.
   P.slice(-6).reverse().forEach((x, k, arr) => {
@@ -3236,7 +3326,7 @@ function updateBridge(pc) {
   if (racing() && ms !== null && ms <= now) $('#dChronoLab').textContent = 'Jour ' + (Math.floor((now - ms) / 86400e3) + 1) + ' de ta tentative';
   else $('#dChronoLab').textContent = 'Temps de course';
   const nx = lastSwitch() + 6 * 3600e3, rn = $('#dRun');
-  rn.textContent = grid && windBehind() ? 'nouvelle, recalcule' : 'suivante à ' + hourFmt.format(new Date(nx));
+  rn.textContent = grid && windBehind() ? 'nouvelle, recalcule' : newerRun() ? 'nouvelle prévision dispo' : 'suivante à ' + hourFmt.format(new Date(nx));
   rn.style.color = grid && windBehind() ? 'var(--bad)' : '';
   // Instruments
   let I = state.inst && now - state.inst.at < 12 * 3600e3 ? state.inst : null, src = '';
