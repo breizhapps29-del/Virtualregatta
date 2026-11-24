@@ -2499,6 +2499,20 @@ $('#btnGo').addEventListener('click', refreshAll);
 $('#btnRun').addEventListener('click', run);
 // Énergie du skipper saisie avec la position (le cercle en haut à gauche dans le jeu) ; 100 % avant le départ.
 function energyNow() { if (!racing()) return 1; const e = num(state.energy); return isNaN(e) ? 1 : Math.min(Math.max(e, 0), 100) / 100; }
+// Portes de la course déjà derrière le bateau : en course, on retire celles dont le bateau est déjà du côté du but suivant.
+// Sinon le calcul repart d'« avant le cap Finisterre » et ramène le bateau en arrière pour recouper la ligne.
+function viaAhead(tgt) {
+  const V = COURSE.via || []; if (!racing() || START === OUESSANT || !V.length) return V;
+  const side = (g, p) => { const k = Math.cos(g.a.lat * Math.PI / 180); return Math.sign((g.b.lon - g.a.lon) * k * (p.lat - g.a.lat) - (g.b.lat - g.a.lat) * (p.lon - g.a.lon) * k); };
+  const mid = g => ({ lat: (g.a.lat + g.b.lat) / 2, lon: (g.a.lon + g.b.lon) / 2 });
+  let k = 0;
+  while (k < V.length) {
+    const nx = k + 1 < V.length ? mid(V[k + 1]) : (goalGate() ? mid(goalGate()) : tgt);
+    const sb = side(V[k], START), sn = side(V[k], nx);
+    if (sb !== 0 && sb === sn) k++; else break;
+  }
+  return V.slice(k);
+}
 function makeCfg() {
   // Renvoie la configuration du calcul, ou null après avoir affiché ce qui manque.
   const tgt = target(), coef = num(state.coef), penalty = num(state.pen), dt = num(state.dt);
@@ -2511,7 +2525,7 @@ function makeCfg() {
   const ml = num(state.minleg);
   const sp = num(state.sailPen);
   calcCoef();
-  return { coefBands, start: START, tgt, gate: goalGate(), via: [...(viaGate() ? [viaGate()] : []), ...COURSE.via], dt, coef, penalty, minLeg: isNaN(ml) || ml < 0 ? 0 : ml, sailPen: isNaN(sp) || sp < 0 ? 0 : sp, game: state.penMode === 'manual' ? null : { keep: keepSpeed(), solo: COURSE.solo }, E0: energyNow() };
+  return { coefBands, start: START, tgt, gate: goalGate(), via: [...(viaGate() ? [viaGate()] : []), ...viaAhead(tgt)], dt, coef, penalty, minLeg: isNaN(ml) || ml < 0 ? 0 : ml, sailPen: isNaN(sp) || sp < 0 ? 0 : sp, game: state.penMode === 'manual' ? null : { keep: keepSpeed(), solo: COURSE.solo }, E0: energyNow() };
 }
 async function runList(cfg, times, label) {
   for (let i = 0; i < times.length; i++) {
@@ -3367,7 +3381,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '50';
+const VERSION = '51';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
