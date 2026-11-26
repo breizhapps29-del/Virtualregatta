@@ -1763,7 +1763,7 @@ const COURSES = {
     restart: { gate: RHUM_FIN, mark: 'fin', aim: { lat: 16.19, lon: -61.52 }, goals: [{ lat: 16.19, lon: -61.52 }], label: 'Pointe-à-Pitre', min: 12 } },
   // The IMOCA Race : Lorient → Alicante par le cap Finisterre, Gibraltar et le cabo de Palos. Course virtuelle, pas de record.
   // Warm-up de la Transat Café L'Or 2027 : Le Havre → Martinique en Ultim, en contournant Fernando de Noronha.
-  tcl: { title: 'Routage Transat Café L\'Or', name: 'Transat Café L\'Or (warm-up)', boat: 'ultim', noRecord: true, start: { lat: 49.55, lon: -0.05 }, startName: 'Le Havre', from: 'du Havre', startLine: 'la ligne du Havre',
+  tcl: { title: 'Routage Transat Café L\'Or', name: 'Transat Café L\'Or (warm-up)', boat: 'ultim', noRecord: true, start: { lat: 49.44, lon: 0.06 }, startName: 'Le Havre', from: 'du Havre', startLine: 'la ligne du Havre',
     westward: true, store: 'tcl-routage-v1', plans: 'tcl-routage-plans-v1', idb: 'tcl-routage', solo: false, raceStart: '2026-12-13T13:00', defPreset: TCL_FIN, fixedStart: true,
     boatDefault: { foil: true, hull: true, light: false, heavy: false, reach: false, winch: false },
     // Lignes que toute route coupe : Ouessant et Finisterre guident le calcul hors de la Manche et autour de l'Espagne ;
@@ -1773,6 +1773,7 @@ const COURSES = {
           { a: { lat: -3.89, lon: -32.42 }, b: { lat: -7.5, lon: -32.42 }, reach: 120, name: 'Fernando de Noronha' }],
     // Zones interdites relevées sur les captures du jeu (rails, parcs éoliens, côte du Brésil et des Guyanes).
     zones: [
+      { name: 'Cap de la Hève', pts: [[49.504, 0.066], [49.516, 0.077], [49.504, 0.098], [49.497, 0.094]] },
       { name: 'Parc éolien du Calvados', pts: [[49.508, -0.604], [49.485, -0.453], [49.423, -0.407], [49.458, -0.553]] },
       { name: 'Rail des Casquets', pts: [[50.063, -2.967], [50.149, -2.479], [49.854, -2.351], [49.765, -2.856]] },
       { name: 'Parc éolien de Saint-Brieuc', pts: [[48.913, -2.613], [48.931, -2.568], [48.799, -2.44], [48.789, -2.515]] },
@@ -3432,7 +3433,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '55';
+const VERSION = '56';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
