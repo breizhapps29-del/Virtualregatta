@@ -1298,7 +1298,9 @@ const LAND = [
   [[16.35,-61.77],[16.30,-61.80],[16.17,-61.79],[16.05,-61.77],[15.95,-61.71],[15.97,-61.64],[16.02,-61.58],[16.10,-61.56],[16.18,-61.57],[16.22,-61.555],[16.235,-61.53],[16.21,-61.42],[16.22,-61.30],[16.25,-61.18],[16.33,-61.24],[16.42,-61.38],[16.51,-61.46],[16.47,-61.52],[16.38,-61.58],[16.36,-61.68]],
   box(15.86, -61.33, 16.01, -61.19), box(15.84, -61.66, 15.89, -61.56), box(16.29, -61.10, 16.34, -61.0),
   [[15.64,-61.48],[15.60,-61.30],[15.40,-61.24],[15.20,-61.27],[15.23,-61.38],[15.45,-61.47]],
-  [[14.88,-61.22],[14.85,-60.95],[14.70,-60.81],[14.45,-60.85],[14.39,-61.0],[14.47,-61.10],[14.62,-61.23]],
+  // Martinique, avec la baie de Fort-de-France ouverte entre la pointe des Nègres et la pointe du Bout ; rocher du Diamant
+  [[14.88,-61.2],[14.87,-61.1],[14.82,-61.0],[14.77,-60.88],[14.7,-60.9],[14.62,-60.83],[14.55,-60.82],[14.47,-60.82],[14.395,-60.875],[14.44,-60.9],[14.465,-60.95],[14.465,-61.03],[14.45,-61.05],[14.49,-61.085],[14.503,-61.098],[14.53,-61.085],[14.555,-61.06],[14.545,-61.04],[14.565,-61.01],[14.6,-61.0],[14.61,-61.06],[14.598,-61.097],[14.64,-61.14],[14.71,-61.18],[14.8,-61.225]],
+  box(14.44, -61.045, 14.447, -61.035), box(14.49, -61.11, 14.515, -61.09),
   box(16.67, -62.24, 16.82, -62.14), box(16.99, -61.91, 17.17, -61.67), box(17.55, -61.88, 17.73, -61.73),
   box(17.10, -62.86, 17.42, -62.54), box(17.47, -63.0, 17.53, -62.93), box(17.6, -63.26, 17.65, -63.21), box(17.87, -62.95, 17.96, -62.79), box(18.0, -63.15, 18.13, -62.97), box(18.15, -63.17, 18.28, -62.97),
   box(13.7, -61.08, 14.11, -60.87), box(13.13, -61.28, 13.38, -61.12), box(13.05, -59.65, 13.33, -59.42),
@@ -1756,7 +1758,7 @@ const $ = s => document.querySelector(s);
 // Chaque course a sa ligne de départ, ses destinations, ses temps de référence et sa propre mémoire (réglages, bouées, journal).
 const RHUM_FIN = 'gate:16.205|-61.545|16.17|-61.5';
 const IMOCA_FIN = '38.32|-0.44';
-const TCL_FIN = '14.57|-61.22';
+const TCL_FIN = 'gate:14.598|-61.097|14.555|-61.06';
 const COURSES = {
   jv: { title: 'Routage Jules Verne', name: 'Trophée Jules Verne', start: { lat: 48.45, lon: -5.15 }, startName: 'Ouessant', from: 'd\'Ouessant', startLine: 'la ligne d\'Ouessant',
     store: 'jv-routage-auto-v5', plans: 'jv-routage-plans-v1', idb: 'jv-routage', solo: false, raceStart: '2026-11-11T22:29', defPreset: '16.5|-27', via: [],
@@ -1769,13 +1771,16 @@ const COURSES = {
   // The IMOCA Race : Lorient → Alicante par le cap Finisterre, Gibraltar et le cabo de Palos. Course virtuelle, pas de record.
   // Warm-up de la Transat Café L'Or 2027 : Le Havre → Martinique en Ultim, en contournant Fernando de Noronha.
   tcl: { title: 'Routage Transat Café L\'Or', name: 'Transat Café L\'Or (warm-up)', boat: 'ultim', noRecord: true, start: { lat: 49.44, lon: 0.06 }, startName: 'Le Havre', from: 'du Havre', startLine: 'la ligne du Havre',
-    westward: true, store: 'tcl-routage-v1', plans: 'tcl-routage-plans-v1', idb: 'tcl-routage', solo: false, raceStart: '2026-12-13T13:00', defPreset: TCL_FIN, fixedStart: true,
+    westward: true, store: 'tcl-routage-v1', plans: 'tcl-routage-plans-v1', idb: 'tcl-routage', solo: false, raceStart: '2026-12-13T13:02', defPreset: TCL_FIN, fixedStart: true,
     boatDefault: { foil: true, hull: true, light: false, heavy: false, reach: false, winch: false },
     // Lignes que toute route coupe : Ouessant et Finisterre guident le calcul hors de la Manche et autour de l'Espagne ;
     // Fernando de Noronha se contourne par l'est et le sud (l'île à tribord), le mur au nord de l'île empêche de passer à l'ouest.
     via: [{ a: { lat: 48.45, lon: -5.15 }, b: { lat: 48.45, lon: -13 }, reach: 30, name: 'Ouessant' },
           { a: { lat: 42.88, lon: -9.27 }, b: { lat: 42.88, lon: -18 }, reach: 30, name: 'Cap Finisterre' },
-          { a: { lat: -3.85, lon: -32.42 }, b: { lat: -7.5, lon: -32.42 }, reach: 120, name: 'Fernando de Noronha' }],
+          { a: { lat: -3.85, lon: -32.42 }, b: { lat: -7.5, lon: -32.42 }, reach: 120, name: 'Fernando de Noronha' },
+          // Martinique : la pointe des Salines puis le cap Salomon à tribord (par le sud), avant la ligne dans la baie de Fort-de-France.
+          { a: { lat: 14.395, lon: -60.875 }, b: { lat: 13.9, lon: -60.875 }, reach: 10, name: 'Pointe des Salines' },
+          { a: { lat: 14.503, lon: -61.098 }, b: { lat: 14.2, lon: -61.25 }, reach: 3, name: 'Cap Salomon' }],
     // Zones interdites relevées sur les captures du jeu (rails, parcs éoliens, côte du Brésil et des Guyanes).
     zones: [
       { name: 'Cap de la Hève', pts: [[49.504, 0.066], [49.516, 0.077], [49.504, 0.098], [49.497, 0.094]] },
@@ -1792,7 +1797,7 @@ const COURSES = {
       { name: 'Côte de Mauritanie', pts: [[21.3, -17.27], [21.3, -16.05], [15.8, -16.05], [15.8, -17.27]] },
       { name: 'Côte du Brésil et des Guyanes', pts: [[11.36, -60.21], [-3.84, -33.47], [-5.14, -35.11], [9.54, -60.59]] }
     ],
-    restart: { gate: TCL_FIN, mark: 'fin', aim: { lat: 14.57, lon: -61.22 }, goals: [{ lat: 14.57, lon: -61.22 }], label: 'Martinique', min: 24 } },
+    restart: { gate: TCL_FIN, mark: 'fin', aim: { lat: 14.577, lon: -61.078 }, goals: [{ lat: 14.577, lon: -61.078 }], label: 'Fort-de-France', min: 24 } },
   imoca: { title: 'Routage IMOCA Race', name: 'The IMOCA Race', boat: 'imoca', noRecord: true, start: { lat: 47.58, lon: -3.56 }, startName: 'Lorient', from: 'de Lorient', startLine: 'la ligne de Lorient',
     store: 'imoca-routage-v1', plans: 'imoca-routage-plans-v1', idb: 'imoca-routage', solo: false, raceStart: '2026-11-22T17:00', defPreset: IMOCA_FIN,
     // Les caps à contourner, dans l'ordre : lignes que toute route traverse forcément. Elles guident le calcul autour de la péninsule.
@@ -3452,7 +3457,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '57';
+const VERSION = '58';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
@@ -3560,7 +3565,7 @@ const MARKS = [
 ];
 // Route du Rhum : temps de course depuis Saint-Malo. rec : Tom Laperche 2026. old : Caudrelier 2022, Joyon 2018, Peyron 2014, Cammas 2010.
 if (COURSE_ID === 'imoca') MARKS.splice(0, MARKS.length, { id: 'fin', name: 'Arrivée', pos: [38.32, -0.44], rec: 0, old: [0] });
-if (COURSE_ID === 'tcl') MARKS.splice(0, MARKS.length, { id: 'fin', name: 'Arrivée', pos: [14.57, -61.22], rec: 0, old: [0] });
+if (COURSE_ID === 'tcl') MARKS.splice(0, MARKS.length, { id: 'fin', name: 'Arrivée', pos: [14.577, -61.078], rec: 0, old: [0] });
 if (COURSE_ID === 'rhum') MARKS.splice(0, MARKS.length, { id: 'fin', name: 'Arrivée', pos: [16.19, -61.52], rec: dhm(6, 13, 28), old: [dhm(6, 19, 47), dhm(7, 14, 22), dhm(7, 15, 9), dhm(9, 3, 15)] });
 MARKS.forEach(m => { m.avg = m.old.reduce((a, b) => a + b, 0) / m.old.length; });
 const fmtJH = h => { const t = Math.round(h), d = Math.floor(t / 24); return (d ? d + ' j ' : '') + (t % 24) + ' h'; };
@@ -3896,7 +3901,7 @@ $('#about').textContent = 'Version ' + VERSION + '. Vent : modèle GFS de la NOA
   }
   if (COURSE_ID === 'tcl') {
     const sel = $('#preset'); sel.textContent = '';
-    [[TCL_FIN, 'Arrivée en Martinique'], ['48.3|-6.5', 'Sortie de Manche (large d\'Ouessant)'], ['42.9|-10.5', 'Large du cap Finisterre'], ['-4.2|-32.42', 'Sud de Fernando de Noronha'], ['', 'Un autre point']]
+    [[TCL_FIN, 'Arrivée à Fort-de-France'], ['48.3|-6.5', 'Sortie de Manche (large d\'Ouessant)'], ['42.9|-10.5', 'Large du cap Finisterre'], ['-4.2|-32.42', 'Sud de Fernando de Noronha'], ['', 'Un autre point']]
       .forEach(([v, n]) => sel.append(new Option(n, v)));
     $('#next').closest('label').hidden = true;
     $('#btnRestart').closest('.block').remove();
