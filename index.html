@@ -1560,7 +1560,10 @@ function followBuoys(cfg, samples, depT, buoys) {
     }
   }
   if (steps.length) steps[0].buoy = false;
-  const rest = computeRoute({ ...cfg, start: { lat, lon }, E0: E }, samples, t);
+  // Portes de passage déjà franchies en suivant les bouées : la suite de la route ne doit pas revenir les couper.
+  const V = (cfg.via || []).map(gateGeom); let st = 0, pl = cfg.start.lat, po = cfg.start.lon;
+  for (const b of buoys) { while (st < V.length && V[st].cross(pl, po, b.lat, b.lon) !== null) st++; pl = b.lat; po = b.lon; }
+  const rest = computeRoute({ ...cfg, start: { lat, lon }, E0: E, via: (cfg.via || []).slice(st) }, samples, t);
   if (!rest.ok) return { ok: false, depT };
   // La première étape après la dernière bouée commence sur cette bouée.
   if (rest.steps.length && buoys.length) rest.steps[0].buoy = true;
@@ -2516,6 +2519,16 @@ $('#btnGo').addEventListener('click', refreshAll);
 $('#btnRun').addEventListener('click', run);
 // Énergie du skipper saisie avec la position (le cercle en haut à gauche dans le jeu) ; 100 % avant le départ.
 function energyNow() { if (!racing()) return 1; const e = num(state.energy); return isNaN(e) ? 1 : Math.min(Math.max(e, 0), 100) / 100; }
+// Porte choisie (« Je vais vers ») déjà franchie : le bateau, proche de la ligne (moins de 300 Mn), est du côté du but suivant.
+function gatePassed(g, next, tgt) {
+  if (!g || !racing() || START === OUESSANT) return false;
+  const nx = next ? { lat: (next.a.lat + next.b.lat) / 2, lon: (next.a.lon + next.b.lon) / 2 } : tgt;
+  const c = Math.cos(START.lat * Math.PI / 180), X = q => [(q.lon - START.lon) * c * 60, (q.lat - START.lat) * 60];
+  const [ax, ay] = X(g.a), [bx, by] = X(g.b), dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy, u = L ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L)) : 0;
+  if (Math.hypot(ax + u * dx, ay + u * dy) > 300) return false;
+  const side = p => { const [px, py] = X(p); return Math.sign(dx * (py - ay) - dy * (px - ax)); };
+  const sb = side(START); return sb !== 0 && sb === side(nx);
+}
 // Portes de la course déjà derrière le bateau. Le parcours est résumé par une ligne brisée : départ, puis chaque cap
 // (bout côté terre de la porte), puis l'arrivée. Le tronçon le plus proche du bateau dit combien de caps sont passés ;
 // puis la porte suivante compte aussi si le bateau, tout près d'elle (moins de 80 Mn), est déjà du côté du but suivant.
@@ -2549,7 +2562,7 @@ function makeCfg() {
   const ml = num(state.minleg);
   const sp = num(state.sailPen);
   calcCoef();
-  return { coefBands, start: START, tgt, gate: goalGate(), via: [...(viaGate() ? [viaGate()] : []), ...viaAhead(tgt)], dt, coef, penalty, minLeg: isNaN(ml) || ml < 0 ? 0 : ml, sailPen: isNaN(sp) || sp < 0 ? 0 : sp, game: state.penMode === 'manual' ? null : { keep: keepSpeed(), solo: COURSE.solo }, E0: energyNow() };
+  return { coefBands, start: START, tgt, gate: goalGate(), via: [...(viaGate() && !gatePassed(viaGate(), goalGate(), tgt) ? [viaGate()] : []), ...viaAhead(tgt)], dt, coef, penalty, minLeg: isNaN(ml) || ml < 0 ? 0 : ml, sailPen: isNaN(sp) || sp < 0 ? 0 : sp, game: state.penMode === 'manual' ? null : { keep: keepSpeed(), solo: COURSE.solo }, E0: energyNow() };
 }
 async function runList(cfg, times, label) {
   for (let i = 0; i < times.length; i++) {
@@ -3405,7 +3418,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '53';
+const VERSION = '54';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
