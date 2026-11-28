@@ -2130,6 +2130,15 @@ function parseGate(str) {
 }
 // Avec une porte suivante, la première porte devient un passage obligé et la route vise la suivante.
 function viaGate() { const a = parseGate(state.preset); return a && parseGate(state.next) ? a : null; }
+// Jules Verne : si « Puis » saute un cap (Leeuwin puis l'équateur au retour, par exemple), la route doit quand même passer
+// le cap Horn (et Bonne-Espérance à l'aller). Sans ça, elle chercherait à remonter directement par l'océan Indien.
+const JV_LEGS = ['gate:-34.8|20|-78|20', 'gate:-46|70|-78|70', 'gate:-34.5|115.1|-78|115.1', 'gate:-47.5|180|-78|180', 'gate:-56.1|-67.3|-78|-67.3', 'gate:0|-40|0|-20'];
+function jvBetween() {
+  if (COURSE_ID !== 'jv' || !viaGate()) return [];
+  const i = JV_LEGS.indexOf(state.preset), j = JV_LEGS.indexOf(state.next);
+  if (i < 0 || j <= i + 1) return [];
+  return [0, 4].filter(k => k > i && k < j).map(k => parseGate(JV_LEGS[k]));
+}
 function goalGate() { return viaGate() ? parseGate(state.next) : parseGate(state.preset); }
 function target() {
   const g = goalGate();
@@ -2848,7 +2857,13 @@ function makeCfg() {
   const ml = num(state.minleg);
   const sp = num(state.sailPen);
   calcCoef();
-  return { coefBands, start: START, tgt, gate: goalGate(), via: [...(viaGate() && !gatePassed(viaGate(), goalGate(), tgt) ? [viaGate()] : []), ...viaAhead(tgt)], dt, coef, penalty, minLeg: isNaN(ml) || ml < 0 ? 0 : ml, sailPen: isNaN(sp) || sp < 0 ? 0 : sp, game: state.penMode === 'manual' ? null : { keep: keepSpeed(), solo: COURSE.solo }, E0: energyNow() };
+  return { coefBands, start: START, tgt, gate: goalGate(), via: [...(viaGate() && !gatePassed(viaGate(), goalGate(), tgt) ? [viaGate()] : []), ...jvBetween(), ...viaAhead(tgt)], dt, coef, penalty, minLeg: isNaN(ml) || ml < 0 ? 0 : ml, sailPen: isNaN(sp) || sp < 0 ? 0 : sp, game: state.penMode === 'manual' ? null : { keep: keepSpeed(), solo: COURSE.solo }, E0: energyNow() };
+}
+// La porte « Puis » trop loin pour la prévision : on refait le calcul jusqu'à la première porte seulement.
+function firstOnly(cfg) {
+  const vg = viaGate(); if (!vg) return null;
+  const same = g => g.a.lat === vg.a.lat && g.a.lon === vg.a.lon && g.b.lat === vg.b.lat && g.b.lon === vg.b.lon;
+  return { ...cfg, gate: vg, tgt: { lat: (vg.a.lat + vg.b.lat) / 2, lon: (vg.a.lon + vg.b.lon) / 2 }, via: cfg.via.filter(g => !same(g) && !jvBetween().some(j => j.a.lat === g.a.lat && j.a.lon === g.a.lon)) };
 }
 async function runList(cfg, times, label) {
   for (let i = 0; i < times.length; i++) {
@@ -2862,13 +2877,14 @@ async function run() {
   readSettings();
   const btn = $('#btnRun'); if (!grid) return; btn.disabled = true;
   try {
-    const cfg = makeCfg(); if (!cfg) return;
+    let cfg = makeCfg(); if (!cfg) return; let short1 = false;
     prevPlan = pickPlan();
     const base = Math.max(0, nowT()), lastOk = grid.nT - 24;
     if (base >= lastOk) { setStatus('La prévision chargée est trop ancienne. Télécharge le vent à nouveau.', true); return; }
     results = [];
     if (racing()) {
       await runList(cfg, [base], 'Calcul');
+      if (bestIndex() < 0 && firstOnly(cfg)) { cfg = firstOnly(cfg); results = []; await runList(cfg, [base], 'Calcul jusqu\'à la première porte'); short1 = true; }
       // Bouées déjà posées : on calcule l'arrivée en les suivant et on ne propose d'en changer que si la nouvelle route gagne vraiment du temps.
       const left = posedLeft(), opt = results[0];
       if (left.length && opt && opt.ok) {
@@ -2904,9 +2920,13 @@ async function run() {
         await runList(cfg, extra, 'Affinage');
       }
     }
+    if (bestIndex() < 0 && !short1 && firstOnly(cfg)) {
+      const times = [...new Set(results.map(r => r.depT))]; cfg = firstOnly(cfg); results = [];
+      await runList(cfg, times, 'Calcul jusqu\'à la première porte'); short1 = true;
+    }
     const bi = bestIndex();
     if (bi < 0) { setStatus('Aucune route trouvée. Vérifie le départ et la destination' + (Math.abs(+state.coef - 1) > 0.2 ? ', et le coefficient de polaire (' + state.coef + ') dans Réglages' : '') + '.', true); setResultsVisible(false); return; }
-    selected = bi; setStatus('Calcul terminé.');
+    selected = bi; setStatus(short1 ? 'Calcul terminé, jusqu\'à la première porte seulement : la porte suivante est trop loin pour la prévision.' : 'Calcul terminé.');
     setResultsVisible(true); renderResults();
   } finally { btn.disabled = false; }
 }
@@ -3718,7 +3738,7 @@ $('#tsl').addEventListener('pointerdown', stopAnim);
 })();
 
 /* ---------- Onglets ---------- */
-const VERSION = '61';
+const VERSION = '62';
 const TABS = ['course', 'carte', 'route', 'reglages'];
 function showTab(name, push) {
   if (!TABS.includes(name)) name = 'course';
